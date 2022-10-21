@@ -3,11 +3,13 @@
 int main() {
     // Initialization
 	
-    const int screenWidth = 800;
-    const int screenHeight = 450;
+    const int screenWidth = 400;
+    const int screenHeight = 400;
+    int dis = 100;
+    int a[4][4] = { {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0} };
 
     InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard input");
-    Vector2 ballPosition = { (float)screenWidth/2, (float)screenHeight/2 };
+    
     SetTargetFPS(60); // Set our game to run at 60 frames-per-second when possible
 
 
@@ -15,19 +17,28 @@ int main() {
 	
 	// `WindowShouldClose` detects window close
     while (!WindowShouldClose()) {
-        // Update
-
-        if (IsKeyDown(KEY_RIGHT)) ballPosition.x += 2.0f;
-        if (IsKeyDown(KEY_LEFT)) ballPosition.x -= 2.0f;
-        if (IsKeyDown(KEY_UP)) ballPosition.y -= 2.0f;
-        if (IsKeyDown(KEY_DOWN)) ballPosition.y += 2.0f;
-
-        // Draw
-		
         BeginDrawing();
-		ClearBackground(RED);
-        DrawText("move the ball with arrow keys", 10, 10, 20, GRAY);
-        DrawCircleV(ballPosition, 50, WHITE);
+        ClearBackground(BLACK);
+
+        // Update
+        for (int y = 0; y < 4; y++) {
+
+            for (int x = 0; x < 4; x++) {
+                if (a[x][y] == 0) {
+                    DrawRectangle(x * dis, y * dis, dis -1, dis - 1, RED);
+                }
+                else {
+                    DrawRectangle(x * dis, y * dis, dis - 1, dis - 1, WHITE);
+                }
+            }
+
+        }
+
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            Vector2 mousePosition = GetMousePosition();
+            a[(int)(mousePosition.x / 100)][(int)(mousePosition.y / 100)] = 1;
+        }
         EndDrawing();
     }
 
