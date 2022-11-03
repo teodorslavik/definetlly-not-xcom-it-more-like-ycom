@@ -3,11 +3,15 @@
 #define MAP_SIZE 10
 
 
+
+
 enum TileValue {
-	TILE_EMPTY, 
-	TILE_FLOOR, 
-	TILE_PLAYER
+    TILE_EMPTY,
+    TILE_FLOOR,
+    TILE_PLAYER
 };
+
+
 
 uint8_t g_tileMap[MAP_SIZE][MAP_SIZE] = {};
 
@@ -17,6 +21,8 @@ int isTileInBounds(int x, int y) {
     return x >= 0 && x < MAP_SIZE&& y >= 0 && y < MAP_SIZE;
 }
 
+
+
 int getTile(int x, int y) {
     if (!isTileInBounds(x,y)) {
         return TILE_EMPTY;
@@ -24,12 +30,16 @@ int getTile(int x, int y) {
     return g_tileMap[x][y];
 }
 
+
+
 void setTile(int x, int y, TileValue value){
-	if (!isTileInBounds(x,y)) {
+    if (!isTileInBounds(x,y)) {
         return;
     }
-	    g_tileMap[x][y] = (uint8_t)value;
+        g_tileMap[x][y] = (uint8_t)value;
 }
+
+
 
 int main() {
     const int screenWidth = 600;
@@ -40,13 +50,26 @@ int main() {
     int camX = 0;
     int camY = 0;
     int camSize = 6;
+
+
+
+   for (int x = 0; x < MAP_SIZE; x++) {
+        for (int y = 0; y < MAP_SIZE; y++) {
+            setTile(x, y, TILE_FLOOR);
+
+
+
+       }
+    }
     InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard input");
     
-    SetTargetFPS(60); 
+    SetTargetFPS(60);
 
 
 
-   while (!WindowShouldClose()) {
+
+
+  while (!WindowShouldClose()) {
         BeginDrawing();
         ClearBackground(BLACK);
         /*
@@ -61,18 +84,18 @@ int main() {
             }
         }
         */
-		
+        
         g_tileMap[1][1] = TILE_PLAYER;
         for (int x = 0; x < camSize; x++) {
             for (int y = 0; y < camSize; y++) {
 
 
 
-               const int tile = getTile(camX + x, camY + y);
+              const int tile = getTile(camX + x, camY + y);
 
 
 
-               if (tile == TILE_EMPTY) {
+              if (tile == TILE_FLOOR) {
                     DrawRectangle(x * dis, y * dis, dis - 1, dis - 1, RED);
                 }
                 else if (tile == TILE_PLAYER){
@@ -84,31 +107,26 @@ int main() {
 
 
 
+
+
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             Vector2 mousePosition = GetMousePosition();
             //getTile((int)(mousePosition.x + camX / 100), (int)(mousePosition.y + camY / 100));
 
 
 
-       }
+
+
+      }
         if (IsKeyReleased(KEY_S)) camY++;
         if (IsKeyReleased(KEY_W)) camY--;
         if (IsKeyReleased(KEY_A)) camX--;
         if (IsKeyReleased(KEY_D)) camX++;
-        
 
 
-
-       EndDrawing();
+      EndDrawing();
     }
-
-
-
-   // De-Initialization
-    
     CloseWindow(); // Close window and OpenGL context
 
-
-
-   return 0;
+  return 0;
 }
