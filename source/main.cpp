@@ -106,7 +106,7 @@ Vec2I findMostEfficentTile(Vec2I startPos, Vec2I endPos) {
 	if (!isCordInBounds(cord3.x, cord3.y)){val3 = 1024;}else {val3 = claculateEfficencyOfTile(cord3, endPos);}
 	if (!isCordInBounds(cord4.x, cord4.y)){val4 = 1024;}else {val4 = claculateEfficencyOfTile(cord4, endPos);}
 
-	int smallestValue = min(min(val1, val3), min(val2, val4));
+	int smallestValue = min(min(val1, val2), min(val3, val4));
 
 	if (smallestValue == val1) return cord1;
 	if (smallestValue == val2) return cord2;
@@ -188,7 +188,7 @@ int main() {
 		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && choosingSecondTile) {
 			Vector2 mousePosition = GetMousePosition();
 			int pathLenghtTemp = findPath(firstSelectedPosition, calculatePosition(GetMousePosition()), pathBuffer, PATH_BUFFER_SIZE);
-			if (pathLenghtTemp < 6) {
+			if (pathLenghtTemp < 5) {
 				pathLenght = pathLenghtTemp;
 				moveEntity(firstSelectedPosition.x, firstSelectedPosition.y, calculatePosition(GetMousePosition()).x, calculatePosition(GetMousePosition()).y);
 				choosingSecondTile = false;
