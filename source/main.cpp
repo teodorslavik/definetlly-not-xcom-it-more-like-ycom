@@ -5,6 +5,8 @@
 
 #define MAP_SIZE 10
 #define PATH_BUFFER_SIZE 1024
+#define OPEN_LIST_SIZE 1024
+#define CLOSED_LIST_SIZE 1024
 
 enum TileValue {
 	TILE_EMPTY,
@@ -20,10 +22,17 @@ struct Vec2I {
 	int y;
 };
 
+struct ListLengts {
+	int open;
+	int closed;
+};
+
 uint8_t g_tileGrid[MAP_SIZE][MAP_SIZE] = {};
 uint8_t g_entityGrid[MAP_SIZE][MAP_SIZE] = {};
 int g_camX = 0;
 int g_camY = 0;
+int g_costOfMovement = 10;
+int g_costOfDiagonalMovement = 14;
 
 int isCordInBounds(int x, int y) {
 	return x >= 0 && x < MAP_SIZE&& y >= 0 && y < MAP_SIZE;
@@ -70,12 +79,10 @@ void moveEntity(int xOrig, int yOrig, int xNew, int yNew) {
 	g_entityGrid[xNew][yNew] = (uint8_t)getEntity(xOrig, yOrig);
 	g_entityGrid[xOrig][yOrig] = (uint8_t)ENTITY_EMPTY;
 }
-
 int min(int a, int b) {
 	if (a > b) return b;
 	return a;
 }
-
 int abs(int number) {
 	if (number > 0) {
 		return number;
@@ -84,13 +91,11 @@ int abs(int number) {
 		return -number;
 	}
 }
-
 int claculateEfficencyOfTile(Vec2I startPos, Vec2I endPos) {
 	int cost;
 	if (getTile(startPos.x, startPos.y) == TILE_EMPTY) { cost = 1024; } else { cost = 1; }
 	return (cost*abs(startPos.x - endPos.x) + cost*abs(startPos.y - endPos.y));
 }
-
 Vec2I findMostEfficentTile(Vec2I startPos, Vec2I endPos) {
 	Vec2I cord1 = {startPos.x, startPos.y - 1 };
 	Vec2I cord2 = {startPos.x + 1, startPos.y};
@@ -114,7 +119,6 @@ Vec2I findMostEfficentTile(Vec2I startPos, Vec2I endPos) {
 	if (smallestValue == val4) return cord4;
 	
 }
-
 int findPath(Vec2I startPos, Vec2I endPos, Vec2I* outPathBuffer, int maxPathBufferSize) {
 	int lenght = 1;
 	outPathBuffer[0] = startPos;
@@ -127,6 +131,115 @@ int findPath(Vec2I startPos, Vec2I endPos, Vec2I* outPathBuffer, int maxPathBuff
 	return lenght;
 }
 
+
+void findAdjacentCords(Vec2I position, Vec2I* adjacentCordsBuffer) {
+	adjacentCordsBuffer[0] = { position.x - 1, position.y - 1 };
+	adjacentCordsBuffer[1] = { position.x, position.y - 1 };
+	adjacentCordsBuffer[2] = { position.x + 1, position.y - 1 };
+	adjacentCordsBuffer[3] = { position.x - 1, position.y};
+	adjacentCordsBuffer[4] = { position.x + 1, position.y};
+	adjacentCordsBuffer[5] = { position.x - 1, position.y + 1 };
+	adjacentCordsBuffer[6] = { position.x, position.y + 1 };
+	adjacentCordsBuffer[7] = { position.x + 1, position.y + 1 };
+}
+
+ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedList, Vec2I* adjacentCordsBuffer, ListLengts lenghtOfLists) {
+	Vec2I verifiedCordsBuffer[8];
+	int lenghtOfVerifiedCords = 0;
+
+	Vec2I nonDuplicitCordsBuffer[8];
+	int lenghtOfNonDupCords = 0;
+
+	findAdjacentCords(position, adjacentCordsBuffer);
+
+	for (int i = 0; i < 8; i++) {
+		if (isCordInBounds(adjacentCordsBuffer[i].x, adjacentCordsBuffer[i].y)) {
+			if (getTile(adjacentCordsBuffer[i].x, adjacentCordsBuffer[i].y) == TILE_FLOOR) {
+				verifiedCordsBuffer[lenghtOfVerifiedCords] = adjacentCordsBuffer[i];
+				lenghtOfVerifiedCords++;
+			}
+		}
+	}
+
+	closedList[lenghtOfLists.closed] = position;
+	lenghtOfLists.closed++;
+	bool colision = false;
+	for (int i = 0; i < lenghtOfVerifiedCords; i++) {
+		for (int a = 0; a < lenghtOfLists.open; a++) {
+			if (verifiedCordsBuffer[i].x == openList[a].x && verifiedCordsBuffer[i].y == openList[a].y) {
+				colision == true;
+			}
+		}
+		if (!colision) {
+			for (int a = 0; a < lenghtOfLists.closed; a++) {
+				if (verifiedCordsBuffer[i].x == closedList[a].x && verifiedCordsBuffer[i].y == closedList[a].y) {
+					colision == true;
+				}
+			}
+		}
+		if (!colision) {
+			nonDuplicitCordsBuffer[lenghtOfNonDupCords] = verifiedCordsBuffer[i];
+			lenghtOfNonDupCords++;
+		}
+		else {
+			colision = false;
+		}
+	}
+
+	for (int i = 0; i < lenghtOfNonDupCords; i++) {
+		openList[lenghtOfLists.open] = nonDuplicitCordsBuffer[i];
+		lenghtOfLists.open++;
+	}
+
+	return lenghtOfLists;
+}
+
+int findTileWithLowestValue(Vec2I startPos, Vec2I endPos, Vec2I* openList, ListLengts lenghtOfLists) {
+	int values[PATH_BUFFER_SIZE];
+	int valuesLenght = 0;
+
+	while (valuesLenght < lenghtOfLists.open) {
+		int dx = abs(openList[valuesLenght].x - endPos.x);
+		int dy = abs(openList[valuesLenght].y - endPos.y);
+
+		values[valuesLenght] = g_costOfMovement * (dx + dy) + (g_costOfDiagonalMovement - 2 * g_costOfMovement) * min(dx, dy);
+
+		valuesLenght++;
+	}
+
+	int smallestValueIndex = 0;
+	for (int i = 0; i < valuesLenght; i++) {
+		if (values[i] < values[smallestValueIndex]) {
+			smallestValueIndex = i;
+		}
+	}
+
+	return smallestValueIndex;
+}
+
+ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenListSize, Vec2I* closedList, int MaxClosedListSize, Vec2I* adjacentCordsBuffer) {
+	ListLengts lenghtOfLists = { 0,0 }; //1. open 2. closed
+	lenghtOfLists = addTileToClosedList(startPos, openList, closedList, adjacentCordsBuffer, lenghtOfLists);
+
+	bool finished = false;
+
+	while (!finished) {
+		for (int i = 0; i < lenghtOfLists.closed; i++) {
+			if (closedList[i].x == endPos.x && closedList[i].y == endPos.y) {
+				finished = true;
+			}
+		}
+		if (lenghtOfLists.open > MaxOpenListSize || lenghtOfLists.closed > MaxClosedListSize) {
+			finished = true;
+		}
+		Vec2I ahoj = openList[findTileWithLowestValue(startPos, endPos, openList, lenghtOfLists)];
+
+		lenghtOfLists = addTileToClosedList(openList[findTileWithLowestValue(startPos, endPos, openList, lenghtOfLists)], openList, closedList, adjacentCordsBuffer, lenghtOfLists);
+
+	}
+	return lenghtOfLists;
+}
+
 int main() {
 	const int screenWidth = 600;
 	const int screenHeight = 600;
@@ -137,6 +250,9 @@ int main() {
 	Vec2I firstSelectedPosition;
 	int pathLenght = 0;
 	Vec2I pathBuffer[PATH_BUFFER_SIZE];
+	Vec2I openList[PATH_BUFFER_SIZE];
+	Vec2I closedList[PATH_BUFFER_SIZE];
+	Vec2I adjacentCordsBuffer[8];
 
 	for (int x = 0; x < MAP_SIZE; x++) {
 		for (int y = 0; y < MAP_SIZE; y++) {
@@ -145,12 +261,17 @@ int main() {
 	}
 
 	setTile(2, 2, TILE_EMPTY);
+	setTile(2, 3, TILE_EMPTY);
+	setTile(3, 2, TILE_EMPTY);
+	
 	setEntity(1, 1, ENTITY_PLAYER);
 	InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard input");
 	SetTargetFPS(60);
 
-	int a = findPath({ 0,0 }, { 2,2 }, pathBuffer, PATH_BUFFER_SIZE);
+	//int a = findPath({ 0,0 }, { 2,2 }, pathBuffer, PATH_BUFFER_SIZE);
 
+	ListLengts TEST = findPathA(Vec2I{ 0,0 }, Vec2I{ 3,3 }, openList, PATH_BUFFER_SIZE, closedList, PATH_BUFFER_SIZE, adjacentCordsBuffer);
+	
 
 	while (!WindowShouldClose()) {
 		BeginDrawing();
@@ -174,6 +295,16 @@ int main() {
 		for (int i = 0; i < pathLenght; i++) {
 			DrawCircle(pathBuffer[i].x * dis + dis / 2, pathBuffer[i].y * dis + dis / 2, 6, YELLOW);
 		}
+
+		for (int i = 0; i < TEST.open; i++) {
+			DrawCircle(openList[i].x * dis + dis / 2, openList[i].y * dis + dis / 2, 6, WHITE);
+		}
+
+		for (int i = 0; i < TEST.closed; i++) {
+			DrawCircle(closedList[i].x * dis + dis / 2, closedList[i].y * dis + dis / 2, 6, PINK);
+		}
+
+
 
 		if (choosingFirstTile) DrawRectangle(0, 0, 10, 10, YELLOW);
 		if (choosingSecondTile) DrawRectangle(10, 0, 10, 10, BLUE);
