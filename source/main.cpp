@@ -26,6 +26,7 @@ struct Vec2I {
 struct ListLengts {
 	int open;
 	int closed;
+	int extracted;
 };
 
 uint8_t g_tileGrid[MAP_SIZE][MAP_SIZE] = {};
@@ -137,7 +138,7 @@ int findPath(Vec2I startPos, Vec2I endPos, Vec2I* outPathBuffer, int maxPathBuff
 	return lenght;
 }
 bool compareIntVectors(Vec2I a, Vec2I b) {
-	return (a.x == b.x && a.y == a.y)
+	return (a.x == b.x && a.y == a.y);
 }
 
 void findAdjacentCords(Vec2I position, Vec2I* adjacentCordsBuffer) {
@@ -171,7 +172,7 @@ ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedLis
 
 	closedList[lenghtOfLists.closed] = position;
 	lenghtOfLists.closed++;
-	
+
 	bool duplicityStatus = false;
 	int duplicityIndex = 0;
 
@@ -183,7 +184,7 @@ ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedLis
 			}
 		}
 	}
-	
+
 	if (duplicityStatus) {
 		for (int i = duplicityIndex; i < lenghtOfLists.open; i++) {
 			openList[i] = openList[i + 1];
@@ -245,10 +246,9 @@ int findTileWithLowestValue(Vec2I startPos, Vec2I endPos, Vec2I* openList, ListL
 	return smallestValueIndex;
 }
 
-int findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenListSize, Vec2I* closedList, int MaxClosedListSize, Vec2I* adjacentCordsBuffer, Vec2I* extractedPath) {
+ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenListSize, Vec2I* closedList, int MaxClosedListSize, Vec2I* adjacentCordsBuffer, Vec2I* extractedPath) {
 	ListLengts lenghtOfLists = { 0,0 };
 	lenghtOfLists = addTileToClosedList(startPos, openList, closedList, adjacentCordsBuffer, lenghtOfLists);
-	int lenghtOfExtractedPath = 0;
 
 	bool finished = false;
 
@@ -256,7 +256,7 @@ int findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenListSize
 		for (int i = 0; i < lenghtOfLists.closed; i++) {
 			if (closedList[i].x == endPos.x && closedList[i].y == endPos.y) {
 				finished = true;
-				
+
 			}
 		}
 		if (lenghtOfLists.open > MaxOpenListSize || lenghtOfLists.closed > MaxClosedListSize) {
@@ -265,11 +265,77 @@ int findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenListSize
 		if (!finished) {
 			lenghtOfLists = addTileToClosedList(openList[findTileWithLowestValue(startPos, endPos, openList, lenghtOfLists)], openList, closedList, adjacentCordsBuffer, lenghtOfLists);
 		}
-		
 
 	}
+	extractedPath[lenghtOfLists.extracted] = closedList[lenghtOfLists.closed];
+	lenghtOfLists.extracted++;
 
-	return lenghtOfExtractedPath;
+	Vec2I currentTile = closedList[lenghtOfLists.closed-1];
+	Vec2I adjacentCordsExtr[8];
+	Vec2I verifiedCordsExtr[8];
+	int verifiedCordsExtrLenght = 0;
+	
+	int valuesExtr[8];
+	int smallestValueExtrIndex = 0;
+
+	while (!compareIntVectors(currentTile, startPos)) {
+		adjacentCordsExtr[0] = { currentTile.x - 1, currentTile.y - 1 };
+		adjacentCordsExtr[1] = { currentTile.x, currentTile.y - 1 };
+		adjacentCordsExtr[2] = { currentTile.x + 1, currentTile.y - 1 };
+		adjacentCordsExtr[3] = { currentTile.x - 1, currentTile.y };
+		adjacentCordsExtr[4] = { currentTile.x + 1, currentTile.y };
+		adjacentCordsExtr[5] = { currentTile.x - 1, currentTile.y + 1 };
+		adjacentCordsExtr[6] = { currentTile.x, currentTile.y + 1 };
+		adjacentCordsExtr[7] = { currentTile.x + 1, currentTile.y + 1 };
+
+		bool found = false;
+		for (int i = 0; i < 8; i++) {
+
+			if (getTile(adjacentCordsExtr[i].x, adjacentCordsExtr[i].y) == TILE_FLOOR) {
+				for (int a = 0; a < lenghtOfLists.closed; a++) {
+					if (compareIntVectors(adjacentCordsExtr[i], closedList[a])) found = true;
+					printf("a");
+				}
+				verifiedCordsExtr[verifiedCordsExtrLenght] = adjacentCordsExtr[i];
+				verifiedCordsExtrLenght++;
+				found = false;
+			}
+
+		}
+
+		for (int i = 0; i < lenghtOfLists.closed; i++) {
+			printf("closed list tiles: %i, %i \n", closedList[i].x, closedList[i].y);
+		}
+		printf("\n");
+		for (int i = 0; i < 8; i++) {
+			printf("backtrack tile: %i, %i \n", verifiedCordsExtr[i].x, verifiedCordsExtr[i].y);
+		}
+		printf("a");
+		//UDELAT CHECKER JESTLI JE TILE V CLOSED LIST
+		for (int i = 0; i < verifiedCordsExtrLenght; i++) {
+			int dx = abs(verifiedCordsExtr[i].x - startPos.x);
+			int dy = abs(verifiedCordsExtr[i].y - startPos.y);
+
+			valuesExtr[verifiedCordsExtrLenght] = g_costOfMovement * (dx + dy) + (g_costOfDiagonalMovement - 2 * g_costOfMovement) * min(dy, dx);
+		}
+		
+		int smallestValue = valuesExtr[0];
+		for (int i = 0; i < verifiedCordsExtrLenght; i++) {
+			if (valuesExtr[i] < smallestValue) {
+				smallestValue = valuesExtr[i];
+				smallestValueExtrIndex = i;
+			}
+		}
+
+		printf("backtrack tile: %i, %i \n", currentTile.x, currentTile.y);
+		currentTile = verifiedCordsExtr[smallestValueExtrIndex];
+		extractedPath[lenghtOfLists.extracted] = currentTile;
+		lenghtOfLists.extracted++;
+		
+	}
+
+
+	return lenghtOfLists;
 }
 
 int main() {
@@ -304,7 +370,7 @@ int main() {
 
 	//int a = findPath({ 0,0 }, { 2,2 }, pathBuffer, PATH_BUFFER_SIZE);
 
-	int TEST = findPathA(Vec2I{ 0,0 }, Vec2I{ 3,3 }, openList, PATH_BUFFER_SIZE, closedList, PATH_BUFFER_SIZE, adjacentCordsBuffer, extractedPath);
+	ListLengts TEST = findPathA(Vec2I{ 0,0 }, Vec2I{ 3,3 }, openList, PATH_BUFFER_SIZE, closedList, PATH_BUFFER_SIZE, adjacentCordsBuffer, extractedPath);
 	printf("lenght of path: %i", TEST);
 
 	while (!WindowShouldClose()) {
@@ -368,10 +434,10 @@ int main() {
 			choosingFirstTile = false;
 			choosingSecondTile = true;
 		}
-	
+
 		EndDrawing();
 	}
 	CloseWindow();
-	
+
 	return 0;
 }
