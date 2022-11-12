@@ -8,6 +8,8 @@
 #define PATH_BUFFER_SIZE 1024
 #define OPEN_LIST_SIZE 1024
 #define CLOSED_LIST_SIZE 1024
+#define MAX_AMOUNT_OF_CREATURES 1024
+#define BANNED_CREATURE_ID 255
 
 enum TileValue {
 	TILE_EMPTY,
@@ -15,12 +17,22 @@ enum TileValue {
 };
 enum Entity {
 	ENTITY_EMPTY,
-	ENTITY_PLAYER
+	ENTITY_LOOT
 };
 
 struct Vec2I {
 	int x;
 	int y;
+};
+
+struct CreatureData {
+	int creatureId;
+	int aim;
+	int actionPointsLeft;
+	int maxActions;
+	int defense;
+	bool isAlly;
+	int mobility;
 };
 
 struct ListLengts {
@@ -31,6 +43,7 @@ struct ListLengts {
 
 uint8_t g_tileGrid[MAP_SIZE][MAP_SIZE] = {};
 uint8_t g_entityGrid[MAP_SIZE][MAP_SIZE] = {};
+uint8_t g_creatureGrid[MAP_SIZE][MAP_SIZE] = {};
 int g_camX = 0;
 int g_camY = 0;
 int g_costOfMovement = 10;
@@ -54,6 +67,12 @@ int getEntity(int x, int y) {
 		return ENTITY_EMPTY;
 	}
 	return g_entityGrid[x][y];
+}
+int getCreature(int x, int y) {
+	if (!isCordInBounds(x, y)) {
+		return BANNED_CREATURE_ID;
+	}
+	return g_creatureGrid[x][y];
 }
 void setTile(int x, int y, TileValue value) {
 	if (!isCordInBounds(x, y)) {
@@ -80,6 +99,13 @@ void moveEntity(int xOrig, int yOrig, int xNew, int yNew) {
 	}
 	g_entityGrid[xNew][yNew] = (uint8_t)getEntity(xOrig, yOrig);
 	g_entityGrid[xOrig][yOrig] = (uint8_t)ENTITY_EMPTY;
+}
+void moveCreature(int xOrig, int yOrig, int xNew, int yNew) {
+	if (!isCordInBounds(xNew, yNew) || !isCordInBounds(xOrig, yOrig)) {
+		return;
+	}
+	g_creatureGrid[xNew][yNew] = (uint8_t)getCreature(xOrig, yOrig);
+	g_creatureGrid[xOrig][yOrig] = BANNED_CREATURE_ID;
 }
 int min(int a, int b) {
 	if (a > b) return b;
@@ -126,11 +152,10 @@ Vec2I findMostEfficentTile(Vec2I startPos, Vec2I endPos) {
 	if (smallestValue == val4) return cord4;
 
 }
-
 bool compareIntVectors(Vec2I a, Vec2I b) {
-	return (a.x == b.x && a.y == a.y);
+	if ((a.x == b.x && a.y == a.y)) return true;
+	return false;
 }
-
 void findAdjacentCords(Vec2I position, Vec2I* adjacentCordsBuffer) {
 	adjacentCordsBuffer[0] = { position.x - 1, position.y - 1 };
 	adjacentCordsBuffer[1] = { position.x, position.y - 1 };
@@ -141,7 +166,6 @@ void findAdjacentCords(Vec2I position, Vec2I* adjacentCordsBuffer) {
 	adjacentCordsBuffer[6] = { position.x, position.y + 1 };
 	adjacentCordsBuffer[7] = { position.x + 1, position.y + 1 };
 }
-
 int removeIndexFromArray(Vec2I* array, int lenghtOfArray ,int index) {
 	for (int i = index; i < lenghtOfArray; i++) {
 		array[i] = array[i + 1];
@@ -149,7 +173,6 @@ int removeIndexFromArray(Vec2I* array, int lenghtOfArray ,int index) {
 	lenghtOfArray = lenghtOfArray - 1;
 	return lenghtOfArray;
 }
-
 ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedList, Vec2I* adjacentCordsBuffer, ListLengts lenghtOfLists) {
 	Vec2I verifiedCordsBuffer[8];
 	int lenghtOfVerifiedCords = 0;
@@ -183,12 +206,12 @@ ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedLis
 	}
 
 	for (int i = 0; i < lenghtOfLists.open; i++) {
-		printf("open: %i, %i \n", openList[i].x, openList[i].y);
+		//printf("open: %i, %i \n", openList[i].x, openList[i].y);
 	}
 	for (int i = 0; i < lenghtOfLists.closed; i++) {
-		printf("closed: %i, %i \n", closedList[i].x, closedList[i].y);
+		//printf("closed: %i, %i \n", closedList[i].x, closedList[i].y);
 	}
-	printf("AAA");
+	//printf("AAA");
 
 
 
@@ -222,7 +245,6 @@ ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedLis
 
 	return lenghtOfLists;
 }
-
 int findTileWithLowestValue(Vec2I startPos, Vec2I endPos, Vec2I* openList, ListLengts lenghtOfLists) {
 	int values[PATH_BUFFER_SIZE];
 	int valuesLenght = 0;
@@ -242,10 +264,9 @@ int findTileWithLowestValue(Vec2I startPos, Vec2I endPos, Vec2I* openList, ListL
 			smallestValueIndex = i;
 		}
 	}
-	printf("SMALLEST CORDS AT THAT TIME: %i, %i \n", openList[smallestValueIndex].x, openList[smallestValueIndex].y);
+	//printf("SMALLEST CORDS AT THAT TIME: %i, %i \n", openList[smallestValueIndex].x, openList[smallestValueIndex].y);
 	return smallestValueIndex;
 }
-
 ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenListSize, Vec2I* closedList, int MaxClosedListSize, Vec2I* adjacentCordsBuffer, Vec2I* extractedPath) {
 	ListLengts lenghtOfLists = { 0,0,0 };
 	lenghtOfLists = addTileToClosedList(startPos, openList, closedList, adjacentCordsBuffer, lenghtOfLists);
@@ -266,12 +287,12 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 			lenghtOfLists = addTileToClosedList(openList[findTileWithLowestValue(startPos, endPos, openList, lenghtOfLists)], openList, closedList, adjacentCordsBuffer, lenghtOfLists);
 		}
 		for (int i = 0; i < lenghtOfLists.open; i++) {
-			printf("open: %i, %i \n", openList[i].x, openList[i].y);
+			//printf("open: %i, %i \n", openList[i].x, openList[i].y);
 		}		
 		for (int i = 0; i < lenghtOfLists.closed; i++) {
-			printf("closed: %i, %i \n", closedList[i].x, closedList[i].y);
+			//printf("closed: %i, %i \n", closedList[i].x, closedList[i].y);
 		}
-		printf("a");
+		//printf("a");
 
 	}
 	extractedPath[0] = closedList[lenghtOfLists.closed - 1];
@@ -287,7 +308,7 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 	int valuesExtr[8];
 	int smallestValueExtrIndex = 0;
 
-	while (!compareIntVectors(currentTile, startPos)) {
+	while (!(startPos.x == currentTile.x && startPos.y == currentTile.y)) {
 		adjacentCordsExtr[0] = { currentTile.x - 1, currentTile.y - 1 };
 		adjacentCordsExtr[1] = { currentTile.x, currentTile.y - 1 };
 		adjacentCordsExtr[2] = { currentTile.x + 1, currentTile.y - 1 };
@@ -317,13 +338,13 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 		}
 
 		for (int i = 0; i < lenghtOfLists.closed; i++) {
-			printf("closed: %i, %i \n", closedList[i].x, closedList[i].y);
+			//printf("closed: %i, %i \n", closedList[i].x, closedList[i].y);
 		}
-		printf("\n");
+		//printf("\n");
 		for (int i = 0; i < 8; i++) {
-			printf("verified: %i, %i \n", verifiedCordsExtr[i].x, verifiedCordsExtr[i].y);
+			//printf("verified: %i, %i \n", verifiedCordsExtr[i].x, verifiedCordsExtr[i].y);
 		}
-		printf("a");
+		//printf("a");
 
 		for (int i = 0; i < verifiedCordsExtrLenght; i++) {
 			int dx = abs(verifiedCordsExtr[i].x - startPos.x);
@@ -347,19 +368,47 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 		verifiedCordsExtrLenght = 0;
 		rechableCordsExtrLenght = 0;
 		for (int i = 0; i < lenghtOfLists.extracted; i++) {
-			printf("extracted: %i, %i \n", extractedPath[i].x, extractedPath[i].y);
+			//printf("extracted: %i, %i \n", extractedPath[i].x, extractedPath[i].y);
 		}
-		printf("a");
+		//printf("a");
 	}
 
 
 	return lenghtOfLists;
 }
+int createCreature(Vec2I position, int lenghtOfCreatureList, int aim, int maxActions, int defense, bool isAlly, int agility, CreatureData* outlistOfAllCreatures) {
+	if (isCordInBounds(position.x, position.y)) {
+		CreatureData newCreature = { lenghtOfCreatureList, aim, 0, maxActions, defense, isAlly, agility };
+		//g_creatureGrid[position.x, position.y] = (uint8_t)newCreature.creatureId;
+		outlistOfAllCreatures[lenghtOfCreatureList] = newCreature;
+		g_creatureGrid[position.x][position.y] = newCreature.creatureId;
+		lenghtOfCreatureList++;
+	}
+
+	return lenghtOfCreatureList;
+
+}
+int selectCreature(Vector2 mousePosition) {
+	Vec2I position = calculatePosition(mousePosition);
+	int value = getCreature(position.x, position.y);
+	if (value == BANNED_CREATURE_ID) {
+		return BANNED_CREATURE_ID;
+	}
+	return value;
+}
+Vec2I findLocationOfCreatureByID(int id) {
+	for (int x = 0; x < MAP_SIZE; x++) {
+		for (int y = 0; y < MAP_SIZE; y++) {
+			if (g_creatureGrid[x][y] == id) return { x, y };
+		}
+	}
+}
 
 int main() {
 	const int screenWidth = 600;
 	const int screenHeight = 600;
-	bool displayPaths = false;
+	bool displayPath = false;
+	bool displayPathDebug = false;
 	int dis = 100;
 	int camSize = 6;
 	bool choosingFirstTile = false;
@@ -371,8 +420,18 @@ int main() {
 	Vec2I closedList[PATH_BUFFER_SIZE];
 	Vec2I extractedPath[PATH_BUFFER_SIZE];
 	Vec2I adjacentCordsBuffer[8];
-	ListLengts Lenghts;
+	ListLengts Lenghts = {0,0,0};
 	int moveLimit = 5;
+	int idOfselectedCreature = BANNED_CREATURE_ID;
+
+	CreatureData listOfAllCreatures[MAX_AMOUNT_OF_CREATURES];
+	int lenghtOfCreatureList = 0;
+
+	for (int x = 0;x < MAP_SIZE ; x++) {
+		for (int y = 0; y < MAP_SIZE; y++) {
+			g_creatureGrid[x][y] = BANNED_CREATURE_ID;
+		}
+	}
 
 	for (int x = 0; x < MAP_SIZE; x++) {
 		for (int y = 0; y < MAP_SIZE; y++) {
@@ -385,7 +444,19 @@ int main() {
 	setTile(3, 2, TILE_EMPTY);
 	setTile(4, 2, TILE_EMPTY);
 
-	setEntity(2, 4, ENTITY_PLAYER);
+	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 65, 2, 60, true, 5, listOfAllCreatures);
+
+	for (int x = 0; x < MAP_SIZE; x++) {
+		for (int y = 0; y < MAP_SIZE; y++) {
+			//printf("%i ", g_creatureGrid[x][y]);
+		}
+		//printf("\n");
+	}
+	for (int i = 0; i < lenghtOfCreatureList; i++) {
+		//printf("list: %i \n", listOfAllCreatures[i].creatureId);
+	}
+	//moveCreature(1, 1, 2, 0);
+	//setEntity(2, 4, ENTITY_PLAYER);
 	InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard input");
 	SetTargetFPS(60);
 
@@ -398,16 +469,23 @@ int main() {
 
 				const int tile = getTile(g_camX + x, g_camY + y);
 				const int entity = getEntity(g_camX + x, g_camY + y);
+				const int idOfSearchedCreature = getCreature(g_camX + x, g_camY + y);
 
 				if (tile == TILE_FLOOR) {
 					DrawRectangle(x * dis, y * dis, dis - 1, dis - 1, RED);
 				}
-				if (entity == ENTITY_PLAYER) {
+				if (entity == ENTITY_LOOT) {
+					DrawCircle(x * dis + dis / 2, y * dis + dis / 2, 25, GOLD);
+				}
+				if (idOfSearchedCreature != BANNED_CREATURE_ID) {
+					if (idOfSearchedCreature == idOfselectedCreature) {
+						DrawCircle(x * dis + dis / 2, y * dis + dis / 2, 35, BLACK);
+					}
 					DrawCircle(x * dis + dis / 2, y * dis + dis / 2, 25, BLUE);
 				}
 			}
 		}
-		if (displayPaths) {
+		if (displayPathDebug) {
 			for (int i = 0; i < Lenghts.open; i++) {
 				DrawCircle(openList[i].x * dis + dis / 2 - g_camX * dis, openList[i].y * dis + dis / 2 - g_camY * dis, 8, WHITE);
 			}
@@ -419,6 +497,15 @@ int main() {
 				DrawCircle(extractedPath[i].x * dis + dis / 2 - g_camX * dis, extractedPath[i].y * dis + dis / 2 - g_camY * dis, 4, YELLOW);
 			}
 		}
+		if (displayPath) {
+			for (int i = 1; i < Lenghts.extracted; i++) {
+				Vector2 start = { extractedPath[i-1].x * dis + dis / 2 - g_camX * dis, extractedPath[i-1].y * dis + dis / 2 - g_camY * dis };
+				Vector2 end = { extractedPath[i].x * dis + dis / 2 - g_camX * dis, extractedPath[i].y * dis + dis / 2 - g_camY * dis };
+				DrawLineEx(start, end, 4, YELLOW);
+
+				DrawCircle(extractedPath[i].x * dis + dis / 2 - g_camX * dis, extractedPath[i].y * dis + dis / 2 - g_camY * dis, 2, YELLOW);
+			}
+		}
 
 
 		if (choosingFirstTile) DrawRectangle(0, 0, 10, 10, YELLOW);
@@ -428,9 +515,29 @@ int main() {
 		if (IsKeyReleased(KEY_W)) g_camY--;
 		if (IsKeyReleased(KEY_A)) g_camX--;
 		if (IsKeyReleased(KEY_D)) g_camX++;
+		if (IsKeyReleased(KEY_SPACE)) { idOfselectedCreature = BANNED_CREATURE_ID; displayPath = false; }
 
+		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+			displayPath = false;
+			printf("last: %i, new: %i \n", idOfselectedCreature, selectCreature(GetMousePosition()));
+			if (idOfselectedCreature != BANNED_CREATURE_ID && selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
+				Vec2I secondPos = calculatePosition(GetMousePosition());
+				if (getTile(secondPos.x, secondPos.y)) {
+					Vec2I firstPos = findLocationOfCreatureByID(idOfselectedCreature);
 
-		if (IsKeyPressed(KEY_SPACE) && !choosingSecondTile) choosingFirstTile = true; 
+					Lenghts = findPathA(firstPos, secondPos, openList, OPEN_LIST_SIZE, closedList, CLOSED_LIST_SIZE, adjacentCordsBuffer, extractedPath);
+
+					if (Lenghts.extracted < listOfAllCreatures[idOfselectedCreature].mobility + 1) {
+						moveCreature(firstPos.x, firstPos.y, secondPos.x, secondPos.y);
+						displayPath = true;
+						printf("display time? : %i, %i \n", Lenghts.extracted, Lenghts.closed);
+					}
+				}
+
+			}
+			idOfselectedCreature = selectCreature(GetMousePosition());
+		}
+		/*if (IsKeyPressed(KEY_SPACE) && !choosingSecondTile) choosingFirstTile = true;
 		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && choosingSecondTile) {
 			Vector2 mousePosition = GetMousePosition();
 			Vec2I secondSelectedPosition = calculatePosition(GetMousePosition());
@@ -439,7 +546,7 @@ int main() {
 			if (Lenghts.extracted < moveLimit + 1) {
 				moveEntity(firstSelectedPosition.x, firstSelectedPosition.y, secondSelectedPosition.x, secondSelectedPosition.y);
 				choosingSecondTile = false;
-				displayPaths = true;
+				displayPath = true;
 			}
 
 		}
@@ -447,8 +554,10 @@ int main() {
 			firstSelectedPosition = calculatePosition(GetMousePosition());
 			choosingFirstTile = false;
 			choosingSecondTile = true;
-			displayPaths = false;
+			displayPath = false;
 		}
+		*/
+
 
 		EndDrawing();
 	}
