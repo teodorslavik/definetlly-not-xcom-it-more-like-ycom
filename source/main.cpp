@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 
-#define MAP_SIZE 10
+#define MAP_SIZE 8
 #define PATH_BUFFER_SIZE 1024
 #define OPEN_LIST_SIZE 1024
 #define CLOSED_LIST_SIZE 1024
@@ -13,7 +13,8 @@
 
 enum TileValue {
 	TILE_EMPTY,
-	TILE_FLOOR
+	TILE_FLOOR,
+	TILE_BOX
 };
 enum Entity {
 	ENTITY_EMPTY,
@@ -48,13 +49,14 @@ int g_camX = 0;
 int g_camY = 0;
 int g_costOfMovement = 10;
 int g_costOfDiagonalMovement = 14;
+int camSize = 6;
 
 int isCordInBounds(int x, int y) {
 	return x >= 0 && x < MAP_SIZE&& y >= 0 && y < MAP_SIZE;
 }
 Vec2I calculatePosition(Vector2 position) {
 
-	return Vec2I{ (int)(position.x / 100) + g_camX , (int)(position.y / 100) + g_camY };
+	return Vec2I{ (int)(position.x / (100 * 6/camSize)) + g_camX , (int)(position.y / (100 * 6 / camSize)) + g_camY };
 }
 int getTile(int x, int y) {
 	if (!isCordInBounds(x, y)) {
@@ -102,6 +104,9 @@ void moveEntity(int xOrig, int yOrig, int xNew, int yNew) {
 }
 void moveCreature(int xOrig, int yOrig, int xNew, int yNew) {
 	if (!isCordInBounds(xNew, yNew) || !isCordInBounds(xOrig, yOrig)) {
+		return;
+	}
+	if (getCreature(xNew, yNew) != BANNED_CREATURE_ID) {
 		return;
 	}
 	g_creatureGrid[xNew][yNew] = (uint8_t)getCreature(xOrig, yOrig);
@@ -184,7 +189,7 @@ ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedLis
 
 	for (int i = 0; i < 8; i++) {
 		if (isCordInBounds(adjacentCordsBuffer[i].x, adjacentCordsBuffer[i].y)) {
-			if (getTile(adjacentCordsBuffer[i].x, adjacentCordsBuffer[i].y) == TILE_FLOOR) {
+			if (getTile(adjacentCordsBuffer[i].x, adjacentCordsBuffer[i].y) == TILE_FLOOR && getCreature(adjacentCordsBuffer[i].x, adjacentCordsBuffer[i].y) == BANNED_CREATURE_ID) {
 				verifiedCordsBuffer[lenghtOfVerifiedCords] = adjacentCordsBuffer[i];
 				lenghtOfVerifiedCords++;
 			}
@@ -361,7 +366,7 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 			}
 		}
 
-		printf("backtrack tile: %i, %i \n", currentTile.x, currentTile.y);
+		//printf("backtrack tile: %i, %i \n", currentTile.x, currentTile.y);
 		currentTile = verifiedCordsExtr[smallestValueExtrIndex];
 		extractedPath[lenghtOfLists.extracted] = currentTile;
 		lenghtOfLists.extracted++;
@@ -373,6 +378,12 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 		//printf("a");
 	}
 
+	Vec2I temp;
+	for (int i = 0; i < lenghtOfLists.extracted / 2; i++) {
+		temp = extractedPath[i];
+		extractedPath[i] = extractedPath[lenghtOfLists.extracted - i - 1];
+		extractedPath[lenghtOfLists.extracted - i - 1] = temp;
+	}
 
 	return lenghtOfLists;
 }
@@ -406,11 +417,18 @@ Vec2I findLocationOfCreatureByID(int id) {
 
 int main() {
 	const int screenWidth = 600;
-	const int screenHeight = 600;
+	const int screenHeight = 700;
 	bool displayPath = false;
 	bool displayPathDebug = false;
-	int dis = 100;
-	int camSize = 6;
+	
+	
+	int defaultCamSize = 6;
+	int minCamSize = 3;
+	int maxCamSize = 12;
+
+	camSize = defaultCamSize;//defaultCamSize;
+
+	int dis = 60/camSize * 10;
 	bool choosingFirstTile = false;
 	bool choosingSecondTile = false;
 	Vec2I firstSelectedPosition;
@@ -423,6 +441,7 @@ int main() {
 	ListLengts Lenghts = {0,0,0};
 	int moveLimit = 5;
 	int idOfselectedCreature = BANNED_CREATURE_ID;
+	bool selectingSecondTile = false;
 
 	CreatureData listOfAllCreatures[MAX_AMOUNT_OF_CREATURES];
 	int lenghtOfCreatureList = 0;
@@ -443,8 +462,11 @@ int main() {
 	setTile(2, 3, TILE_EMPTY);
 	setTile(3, 2, TILE_EMPTY);
 	setTile(4, 2, TILE_EMPTY);
+	setTile(0, 0, TILE_BOX);
 
-	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 65, 2, 60, true, 5, listOfAllCreatures);
+	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 65, 2, 60, true, 4, listOfAllCreatures);
+	lenghtOfCreatureList = createCreature({ 1,2 }, lenghtOfCreatureList, 65, 2, 60, true, 4, listOfAllCreatures);
+
 
 	for (int x = 0; x < MAP_SIZE; x++) {
 		for (int y = 0; y < MAP_SIZE; y++) {
@@ -455,14 +477,23 @@ int main() {
 	for (int i = 0; i < lenghtOfCreatureList; i++) {
 		//printf("list: %i \n", listOfAllCreatures[i].creatureId);
 	}
-	//moveCreature(1, 1, 2, 0);
-	//setEntity(2, 4, ENTITY_PLAYER);
+
+
 	InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard input");
 	SetTargetFPS(60);
-
+	Texture2D ally_normal = LoadTexture("./textures/player_normal_001.png");
+	Texture2D floor_normal = LoadTexture("./textures/floor_basic_001.png");
+	Texture2D box_normal = LoadTexture("./textures/box_basic_001.png");
+	
 	while (!WindowShouldClose()) {
-		BeginDrawing();
+		BeginDrawing();	
 		ClearBackground(BLACK);
+		
+
+		if (GetMouseWheelMove() == -1 && camSize < maxCamSize) camSize++;
+		if (GetMouseWheelMove() == 1 && camSize > minCamSize) camSize--;
+		
+		dis = (int)((6 / (float)camSize) * 100);
 
 		for (int x = 0; x < camSize; x++) {
 			for (int y = 0; y < camSize; y++) {
@@ -472,29 +503,49 @@ int main() {
 				const int idOfSearchedCreature = getCreature(g_camX + x, g_camY + y);
 
 				if (tile == TILE_FLOOR) {
-					DrawRectangle(x * dis, y * dis, dis - 1, dis - 1, RED);
+					//DrawRectangle(x * dis, y * dis, dis - 1, dis - 1, RED);
+					int rotations[4] = { 0,90,180,270 };
+					DrawTextureEx(floor_normal, { (float)(x * dis), (float)(y * dis) }, rotations[0/*GetRandomValue(0, 3) */], (float)(dis-1) / floor_normal.width, RAYWHITE);
+
 				}
+				else if (tile == TILE_BOX) {
+					int rotations[4] = { 0,90,180,270 };
+					DrawTextureEx(floor_normal, { (float)(x * dis), (float)(y * dis) }, rotations[0/*GetRandomValue(0, 3) */], (float)(dis - 1) / floor_normal.width, RAYWHITE);
+					DrawTextureEx(box_normal, { (float)(x * dis), (float)(y * dis) }, 0, (float)(dis - 1) / box_normal.width, RAYWHITE);
+				}
+
 				if (entity == ENTITY_LOOT) {
-					DrawCircle(x * dis + dis / 2, y * dis + dis / 2, 25, GOLD);
+					DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/4, GOLD);
 				}
 				if (idOfSearchedCreature != BANNED_CREATURE_ID) {
 					if (idOfSearchedCreature == idOfselectedCreature) {
-						DrawCircle(x * dis + dis / 2, y * dis + dis / 2, 35, BLACK);
+						//DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/3, BLACK);
+						Vector2 cornerLU[3] = { {(float)x * dis, (float)y * dis + dis/3}, {(float)x * dis + dis / 3, (float)y * dis}, {(float)x * dis, (float)y * dis} };
+						Vector2 cornerRU[3] = { {(float)x * dis + dis, (float)y * dis + dis / 3}, {(float)x * dis + dis - dis / 3, (float)y * dis}, {(float)x * dis + dis, (float)y * dis} } ;
+						Vector2 cornerLB[3] = {{(float)x * dis, (float)y * dis + dis - dis / 3} , {(float)x * dis + dis / 3, (float)y * dis + dis}, {(float)x * dis, (float)y * dis + dis}};
+						Vector2 cornerRB[3] = { {(float)x * dis + dis, (float)y * dis + dis - dis / 3} , {(float)x * dis + dis - dis / 3, (float)y * dis + dis} , {(float)x * dis + dis, (float)y * dis + dis} };
+
+						DrawLineBezierQuad(cornerLU[0], cornerLU[1], cornerLU[2], 2, WHITE);
+						DrawLineBezierQuad(cornerRU[0], cornerRU[1], cornerRU[2], 2, WHITE);
+						DrawLineBezierQuad(cornerLB[0], cornerLB[1], cornerLB[2], 2, WHITE);
+						DrawLineBezierQuad(cornerRB[0], cornerRB[1], cornerRB[2], 2, WHITE);
 					}
-					DrawCircle(x * dis + dis / 2, y * dis + dis / 2, 25, BLUE);
+					DrawTextureEx(ally_normal, { (float)(x * dis), (float)(y * dis) }, 0, (float)dis/ally_normal.width, RAYWHITE);
+					//DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/4, BLUE);
 				}
 			}
 		}
+		
 		if (displayPathDebug) {
 			for (int i = 0; i < Lenghts.open; i++) {
-				DrawCircle(openList[i].x * dis + dis / 2 - g_camX * dis, openList[i].y * dis + dis / 2 - g_camY * dis, 8, WHITE);
+				DrawCircle(openList[i].x * dis + dis / 2 - g_camX * dis, openList[i].y * dis + dis / 2 - g_camY * dis, dis/10, WHITE);
 			}
 
 			for (int i = 0; i < Lenghts.closed; i++) {
-				DrawCircle(closedList[i].x * dis + dis / 2 - g_camX * dis, closedList[i].y * dis + dis / 2 - g_camY * dis, 8, PINK);
+				DrawCircle(closedList[i].x * dis + dis / 2 - g_camX * dis, closedList[i].y * dis + dis / 2 - g_camY * dis, dis / 10, PINK);
 			}
 			for (int i = 0; i < Lenghts.extracted; i++) {
-				DrawCircle(extractedPath[i].x * dis + dis / 2 - g_camX * dis, extractedPath[i].y * dis + dis / 2 - g_camY * dis, 4, YELLOW);
+				DrawCircle(extractedPath[i].x * dis + dis / 2 - g_camX * dis, extractedPath[i].y * dis + dis / 2 - g_camY * dis, dis / 20, YELLOW);
 			}
 		}
 		if (displayPath) {
@@ -510,55 +561,44 @@ int main() {
 
 		if (choosingFirstTile) DrawRectangle(0, 0, 10, 10, YELLOW);
 		if (choosingSecondTile) DrawRectangle(10, 0, 10, 10, BLUE);
-
+		
 		if (IsKeyReleased(KEY_S)) g_camY++;
 		if (IsKeyReleased(KEY_W)) g_camY--;
 		if (IsKeyReleased(KEY_A)) g_camX--;
 		if (IsKeyReleased(KEY_D)) g_camX++;
-		if (IsKeyReleased(KEY_SPACE)) { idOfselectedCreature = BANNED_CREATURE_ID; displayPath = false; }
 
+		
+		if (IsKeyReleased(KEY_SPACE)) { idOfselectedCreature = BANNED_CREATURE_ID; displayPath = false; selectingSecondTile = false; }
 		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-			displayPath = false;
-			printf("last: %i, new: %i \n", idOfselectedCreature, selectCreature(GetMousePosition()));
-			if (idOfselectedCreature != BANNED_CREATURE_ID && selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
-				Vec2I secondPos = calculatePosition(GetMousePosition());
-				if (getTile(secondPos.x, secondPos.y)) {
-					Vec2I firstPos = findLocationOfCreatureByID(idOfselectedCreature);
+			if (selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
 
-					Lenghts = findPathA(firstPos, secondPos, openList, OPEN_LIST_SIZE, closedList, CLOSED_LIST_SIZE, adjacentCordsBuffer, extractedPath);
+			}else {
+				idOfselectedCreature = selectCreature(GetMousePosition());
+				selectingSecondTile = false;
+				displayPath = false;
+			}
+		}
+		if (idOfselectedCreature != BANNED_CREATURE_ID && selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
+			Vec2I secondPos = calculatePosition(GetMousePosition());
+			if (getTile(secondPos.x, secondPos.y) == TILE_FLOOR) {
+				Vec2I firstPos = findLocationOfCreatureByID(idOfselectedCreature);
 
-					if (Lenghts.extracted < listOfAllCreatures[idOfselectedCreature].mobility + 1) {
-						moveCreature(firstPos.x, firstPos.y, secondPos.x, secondPos.y);
-						displayPath = true;
-						printf("display time? : %i, %i \n", Lenghts.extracted, Lenghts.closed);
-					}
+				Lenghts = findPathA(firstPos, secondPos, openList, OPEN_LIST_SIZE, closedList, CLOSED_LIST_SIZE, adjacentCordsBuffer, extractedPath);
+
+				if (Lenghts.extracted > listOfAllCreatures[idOfselectedCreature].mobility + 1) {
+					Lenghts.extracted = listOfAllCreatures[idOfselectedCreature].mobility + 1;
 				}
-
-			}
-			idOfselectedCreature = selectCreature(GetMousePosition());
-		}
-		/*if (IsKeyPressed(KEY_SPACE) && !choosingSecondTile) choosingFirstTile = true;
-		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && choosingSecondTile) {
-			Vector2 mousePosition = GetMousePosition();
-			Vec2I secondSelectedPosition = calculatePosition(GetMousePosition());
-			//ListLengts Lenghts = findPathA(Vec2I{ 0,0 }, Vec2I{ 3,3 }, openList, PATH_BUFFER_SIZE, closedList, PATH_BUFFER_SIZE, adjacentCordsBuffer, extractedPath);
-			Lenghts = findPathA(firstSelectedPosition, secondSelectedPosition, openList, PATH_BUFFER_SIZE, closedList, PATH_BUFFER_SIZE, adjacentCordsBuffer, extractedPath);
-			if (Lenghts.extracted < moveLimit + 1) {
-				moveEntity(firstSelectedPosition.x, firstSelectedPosition.y, secondSelectedPosition.x, secondSelectedPosition.y);
-				choosingSecondTile = false;
 				displayPath = true;
+				selectingSecondTile = true;
+				//printf("display time? : %i, %i \n", Lenghts.extracted, Lenghts.closed);
+
+				if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && selectingSecondTile) {
+					moveCreature(firstPos.x, firstPos.y, extractedPath[Lenghts.extracted-1].x, extractedPath[Lenghts.extracted-1].y);//secondPos.x, secondPos.y);
+					displayPath = false;
+					selectingSecondTile = false;
+				}
 			}
-
 		}
-		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && choosingFirstTile) {
-			firstSelectedPosition = calculatePosition(GetMousePosition());
-			choosingFirstTile = false;
-			choosingSecondTile = true;
-			displayPath = false;
-		}
-		*/
-
-
 		EndDrawing();
 	}
 	CloseWindow();
