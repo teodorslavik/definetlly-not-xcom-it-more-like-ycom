@@ -11,6 +11,10 @@
 #define MAX_AMOUNT_OF_CREATURES 1024
 #define BANNED_CREATURE_ID 255
 
+struct StatusEfect {
+	int statusEffectId;
+	int strenght;
+};
 enum TileValue {
 	TILE_EMPTY,
 	TILE_FLOOR,
@@ -20,12 +24,10 @@ enum Entity {
 	ENTITY_EMPTY,
 	ENTITY_LOOT
 };
-
 struct Vec2I {
 	int x;
 	int y;
 };
-
 struct CreatureData {
 	int creatureId;
 	int aim;
@@ -34,8 +36,9 @@ struct CreatureData {
 	int defense;
 	bool isAlly;
 	int mobility;
+	StatusEfect statusEfects[128];
+	int lenghtOfStatusEfects;
 };
-
 struct ListLengts {
 	int open;
 	int closed;
@@ -272,7 +275,12 @@ int findTileWithLowestValue(Vec2I startPos, Vec2I endPos, Vec2I* openList, ListL
 	//printf("SMALLEST CORDS AT THAT TIME: %i, %i \n", openList[smallestValueIndex].x, openList[smallestValueIndex].y);
 	return smallestValueIndex;
 }
-ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenListSize, Vec2I* closedList, int MaxClosedListSize, Vec2I* adjacentCordsBuffer, Vec2I* extractedPath) {
+ListLengts findPathA(Vec2I startPos, Vec2I endPos, /*Vec2I* openList, int MaxOpenListSize, Vec2I* closedList, int MaxClosedListSize, Vec2I* adjacentCordsBuffer,*/ Vec2I* extractedPath) {
+
+	static Vec2I openList[PATH_BUFFER_SIZE];
+	static Vec2I closedList[PATH_BUFFER_SIZE];
+	static Vec2I adjacentCordsBuffer[8];
+
 	ListLengts lenghtOfLists = { 0,0,0 };
 	lenghtOfLists = addTileToClosedList(startPos, openList, closedList, adjacentCordsBuffer, lenghtOfLists);
 
@@ -285,7 +293,7 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 
 			}
 		}
-		if (lenghtOfLists.open > MaxOpenListSize || lenghtOfLists.closed > MaxClosedListSize) {
+		if (lenghtOfLists.open > OPEN_LIST_SIZE || lenghtOfLists.closed > CLOSED_LIST_SIZE) {
 			finished = true;
 		}
 		if (!finished) {
@@ -389,7 +397,7 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, Vec2I* openList, int MaxOpenL
 }
 int createCreature(Vec2I position, int lenghtOfCreatureList, int aim, int maxActions, int defense, bool isAlly, int agility, CreatureData* outlistOfAllCreatures) {
 	if (isCordInBounds(position.x, position.y)) {
-		CreatureData newCreature = { lenghtOfCreatureList, aim, 0, maxActions, defense, isAlly, agility };
+		CreatureData newCreature = { lenghtOfCreatureList, aim, 0, maxActions, defense, isAlly, agility, {0,0} , 0};
 		//g_creatureGrid[position.x, position.y] = (uint8_t)newCreature.creatureId;
 		outlistOfAllCreatures[lenghtOfCreatureList] = newCreature;
 		g_creatureGrid[position.x][position.y] = newCreature.creatureId;
@@ -414,6 +422,13 @@ Vec2I findLocationOfCreatureByID(int id) {
 		}
 	}
 }
+void addStatusEffect(int lenghtOfCreatureList, CreatureData* listOfAllCreatures, int idOfcreature, StatusEfect statusEfect) {
+	if (idOfcreature > lenghtOfCreatureList) return;
+	CreatureData currentCreature = listOfAllCreatures[idOfcreature];
+	currentCreature.statusEfects[currentCreature.lenghtOfStatusEfects] = statusEfect;
+	currentCreature.lenghtOfStatusEfects++;
+	listOfAllCreatures[idOfcreature] = currentCreature;
+}
 
 int main() {
 	const int screenWidth = 600;
@@ -421,12 +436,11 @@ int main() {
 	bool displayPath = false;
 	bool displayPathDebug = false;
 	
-	
 	int defaultCamSize = 6;
 	int minCamSize = 3;
 	int maxCamSize = 12;
 
-	camSize = defaultCamSize;//defaultCamSize;
+	camSize = defaultCamSize;
 
 	int dis = 60/camSize * 10;
 	bool choosingFirstTile = false;
@@ -434,16 +448,19 @@ int main() {
 	Vec2I firstSelectedPosition;
 	int pathLenght = 0;
 	Vec2I pathBuffer[PATH_BUFFER_SIZE];
+	Vec2I extractedPath[PATH_BUFFER_SIZE];
+/*
 	Vec2I openList[PATH_BUFFER_SIZE];
 	Vec2I closedList[PATH_BUFFER_SIZE];
-	Vec2I extractedPath[PATH_BUFFER_SIZE];
 	Vec2I adjacentCordsBuffer[8];
+	*/
+
 	ListLengts Lenghts = {0,0,0};
 	int moveLimit = 5;
 	int idOfselectedCreature = BANNED_CREATURE_ID;
 	bool selectingSecondTile = false;
 
-	CreatureData listOfAllCreatures[MAX_AMOUNT_OF_CREATURES];
+	static CreatureData listOfAllCreatures[MAX_AMOUNT_OF_CREATURES];
 	int lenghtOfCreatureList = 0;
 
 	for (int x = 0;x < MAP_SIZE ; x++) {
@@ -535,7 +552,7 @@ int main() {
 				}
 			}
 		}
-		
+		/*
 		if (displayPathDebug) {
 			for (int i = 0; i < Lenghts.open; i++) {
 				DrawCircle(openList[i].x * dis + dis / 2 - g_camX * dis, openList[i].y * dis + dis / 2 - g_camY * dis, dis/10, WHITE);
@@ -547,7 +564,7 @@ int main() {
 			for (int i = 0; i < Lenghts.extracted; i++) {
 				DrawCircle(extractedPath[i].x * dis + dis / 2 - g_camX * dis, extractedPath[i].y * dis + dis / 2 - g_camY * dis, dis / 20, YELLOW);
 			}
-		}
+		}*/
 		if (displayPath) {
 			for (int i = 1; i < Lenghts.extracted; i++) {
 				Vector2 start = { extractedPath[i-1].x * dis + dis / 2 - g_camX * dis, extractedPath[i-1].y * dis + dis / 2 - g_camY * dis };
@@ -583,7 +600,7 @@ int main() {
 			if (getTile(secondPos.x, secondPos.y) == TILE_FLOOR) {
 				Vec2I firstPos = findLocationOfCreatureByID(idOfselectedCreature);
 
-				Lenghts = findPathA(firstPos, secondPos, openList, OPEN_LIST_SIZE, closedList, CLOSED_LIST_SIZE, adjacentCordsBuffer, extractedPath);
+				Lenghts = findPathA(firstPos, secondPos, /*openList, OPEN_LIST_SIZE, closedList, CLOSED_LIST_SIZE, adjacentCordsBuffer,*/ extractedPath);
 
 				if (Lenghts.extracted > listOfAllCreatures[idOfselectedCreature].mobility + 1) {
 					Lenghts.extracted = listOfAllCreatures[idOfselectedCreature].mobility + 1;
