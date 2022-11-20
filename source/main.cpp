@@ -11,10 +11,9 @@
 #define MAX_AMOUNT_OF_CREATURES 1024
 #define BANNED_CREATURE_ID 255
 
-struct StatusEfect {
-	int statusEffectId;
-	int strenght;
-};
+#define MAX_LENGHT_OF_STATUS_EFFECTS 128
+#define STATUS_COVER_ID 1
+
 enum TileValue {
 	TILE_EMPTY,
 	TILE_FLOOR,
@@ -24,9 +23,22 @@ enum Entity {
 	ENTITY_EMPTY,
 	ENTITY_LOOT
 };
+
+enum Cover {
+	NO_COVER,
+	HALF_COVER,
+	FULL_COVER
+};
+
 struct Vec2I {
 	int x;
 	int y;
+};
+struct StatusEfect {
+	int statusEffectId;
+	int strenght;
+	Vector2 orientation;
+	int duration;
 };
 struct CreatureData {
 	int creatureId;
@@ -36,7 +48,7 @@ struct CreatureData {
 	int defense;
 	bool isAlly;
 	int mobility;
-	StatusEfect statusEfects[128];
+	StatusEfect statusEfects[MAX_LENGHT_OF_STATUS_EFFECTS];
 	int lenghtOfStatusEfects;
 };
 struct ListLengts {
@@ -174,8 +186,16 @@ void findAdjacentCords(Vec2I position, Vec2I* adjacentCordsBuffer) {
 	adjacentCordsBuffer[6] = { position.x, position.y + 1 };
 	adjacentCordsBuffer[7] = { position.x + 1, position.y + 1 };
 }
-int removeIndexFromArray(Vec2I* array, int lenghtOfArray ,int index) {
+int removeIndexFromArrayVec2I(Vec2I* array, int lenghtOfArray ,int index) {
 	for (int i = index; i < lenghtOfArray; i++) {
+		array[i] = array[i + 1];
+	}
+	lenghtOfArray = lenghtOfArray - 1;
+	return lenghtOfArray;
+}
+int removeIndexFromArrayStatusEffect(StatusEfect* array, int lenghtOfArray, int index) {
+	for (int i = index; i < lenghtOfArray; i++) {
+		printf("a");
 		array[i] = array[i + 1];
 	}
 	lenghtOfArray = lenghtOfArray - 1;
@@ -208,7 +228,7 @@ ListLengts addTileToClosedList(Vec2I position, Vec2I* openList, Vec2I* closedLis
 		for (int b = 0; b < lenghtOfLists.closed; b++) {
 			if (openList[a].x == closedList[b].x && openList[a].y == closedList[b].y) {
 				duplicityIndex = a;
-				lenghtOfLists.open = removeIndexFromArray(openList, lenghtOfLists.open, a);
+				lenghtOfLists.open = removeIndexFromArrayVec2I(openList, lenghtOfLists.open, a);
 			}
 		}
 	}
@@ -423,10 +443,75 @@ Vec2I findLocationOfCreatureByID(int id) {
 	}
 }
 void addStatusEffect(int lenghtOfCreatureList, CreatureData* listOfAllCreatures, int idOfcreature, StatusEfect statusEfect) {
-	if (idOfcreature > lenghtOfCreatureList) return;
+
+	if (idOfcreature > lenghtOfCreatureList) { return; }
 	CreatureData currentCreature = listOfAllCreatures[idOfcreature];
 	currentCreature.statusEfects[currentCreature.lenghtOfStatusEfects] = statusEfect;
-	currentCreature.lenghtOfStatusEfects++;
+	currentCreature.lenghtOfStatusEfects = currentCreature.lenghtOfStatusEfects + 1;
+	listOfAllCreatures[idOfcreature] = currentCreature;
+
+}
+int findIndexOfStatusEffectByID(CreatureData creature, int searchedId) {
+	for (int i = 0; i < creature.lenghtOfStatusEfects; i++) {
+		if (creature.statusEfects[i].statusEffectId == searchedId) {
+			int a = 1;
+			return i;
+		}
+	}
+}
+int getCoverOfTile(Vec2I position) {
+	int tile = getTile(position.x, position.y);
+	if (tile == TILE_EMPTY || tile == TILE_FLOOR) {
+		return NO_COVER;
+	}
+	if (tile == TILE_BOX) {
+		return HALF_COVER;
+	}
+}
+void updateCreatureCover(int lenghtOfCreatureList, CreatureData* listOfAllCreatures, int idOfcreature, Vec2I position) {
+	Vec2I adjacentCordsBuffer[4];
+	adjacentCordsBuffer[0] = { position.x, position.y - 1 };
+	adjacentCordsBuffer[1] = { position.x - 1, position.y};
+	adjacentCordsBuffer[2] = { position.x, position.y + 1 };
+	adjacentCordsBuffer[3] = { position.x + 1, position.y };
+
+	
+	CreatureData currentCreature = listOfAllCreatures[idOfcreature];
+
+	int indexesToDelete[MAX_LENGHT_OF_STATUS_EFFECTS];
+	int lenghtOfIndexesToDelete = 0;
+
+	for (int i = 0; i < currentCreature.lenghtOfStatusEfects; i++) {
+		if (currentCreature.statusEfects[i].statusEffectId == STATUS_COVER_ID) {
+			indexesToDelete[lenghtOfIndexesToDelete] = i;
+			lenghtOfIndexesToDelete++;
+		}
+	}
+	for (int i = 0; i < lenghtOfIndexesToDelete; i++) {
+		currentCreature.lenghtOfStatusEfects = removeIndexFromArrayStatusEffect(currentCreature.statusEfects, currentCreature.lenghtOfStatusEfects, indexesToDelete[i]);
+	}
+
+	for (int i = 0; i < 8; i++) {
+		int coverStatus = getCoverOfTile(adjacentCordsBuffer[i]);
+		
+		if (coverStatus == HALF_COVER) {
+
+			Vector2 VectorOfTwoPoints; // AB->
+			Vec2I A = position;
+			Vec2I B = adjacentCordsBuffer[i];
+			VectorOfTwoPoints = { (float)(B.x - A.x), (float)(B.y - A.y) };
+			//double SizeOfVector = sqrt(VectorOfTwoPoints.x * VectorOfTwoPoints.x + VectorOfTwoPoints.y * VectorOfTwoPoints.y);
+			//Vector2 NormalaisedVector = { VectorOfTwoPoints.x/SizeOfVector, VectorOfTwoPoints.y / SizeOfVector };
+
+			StatusEfect statusEfect = { STATUS_COVER_ID, HALF_COVER, VectorOfTwoPoints/*NormalaisedVector8*/, 0};
+
+			currentCreature.statusEfects[currentCreature.lenghtOfStatusEfects] = statusEfect;
+			currentCreature.lenghtOfStatusEfects = currentCreature.lenghtOfStatusEfects + 1;
+			listOfAllCreatures[idOfcreature] = currentCreature;
+
+
+		}
+	}	
 	listOfAllCreatures[idOfcreature] = currentCreature;
 }
 
@@ -449,11 +534,6 @@ int main() {
 	int pathLenght = 0;
 	Vec2I pathBuffer[PATH_BUFFER_SIZE];
 	Vec2I extractedPath[PATH_BUFFER_SIZE];
-/*
-	Vec2I openList[PATH_BUFFER_SIZE];
-	Vec2I closedList[PATH_BUFFER_SIZE];
-	Vec2I adjacentCordsBuffer[8];
-	*/
 
 	ListLengts Lenghts = {0,0,0};
 	int moveLimit = 5;
@@ -475,10 +555,10 @@ int main() {
 		}
 	}
 
-	setTile(2, 2, TILE_EMPTY);
+	setTile(2, 2, TILE_BOX);
 	setTile(2, 3, TILE_EMPTY);
-	setTile(3, 2, TILE_EMPTY);
-	setTile(4, 2, TILE_EMPTY);
+	setTile(3, 2, TILE_BOX);
+	setTile(4, 2, TILE_BOX);
 	setTile(0, 0, TILE_BOX);
 
 	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 65, 2, 60, true, 4, listOfAllCreatures);
@@ -502,6 +582,9 @@ int main() {
 	Texture2D floor_normal = LoadTexture("./textures/floor_basic_001.png");
 	Texture2D box_normal = LoadTexture("./textures/box_basic_001.png");
 	
+	//addStatusEffect(lenghtOfCreatureList, listOfAllCreatures, 0, { STATUS_COVER_ID, HALF_COVER, {1,1}, 0});
+
+
 	while (!WindowShouldClose()) {
 		BeginDrawing();	
 		ClearBackground(BLACK);
@@ -520,7 +603,6 @@ int main() {
 				const int idOfSearchedCreature = getCreature(g_camX + x, g_camY + y);
 
 				if (tile == TILE_FLOOR) {
-					//DrawRectangle(x * dis, y * dis, dis - 1, dis - 1, RED);
 					int rotations[4] = { 0,90,180,270 };
 					DrawTextureEx(floor_normal, { (float)(x * dis), (float)(y * dis) }, rotations[0/*GetRandomValue(0, 3) */], (float)(dis-1) / floor_normal.width, RAYWHITE);
 
@@ -546,6 +628,22 @@ int main() {
 						DrawLineBezierQuad(cornerRU[0], cornerRU[1], cornerRU[2], 2, WHITE);
 						DrawLineBezierQuad(cornerLB[0], cornerLB[1], cornerLB[2], 2, WHITE);
 						DrawLineBezierQuad(cornerRB[0], cornerRB[1], cornerRB[2], 2, WHITE);
+
+
+						CreatureData currentCreature = listOfAllCreatures[idOfselectedCreature];
+						if (currentCreature.lenghtOfStatusEfects != 0) {
+							int indexInStatusEffects = findIndexOfStatusEffectByID(currentCreature, STATUS_COVER_ID);
+
+							if (currentCreature.statusEfects[indexInStatusEffects].strenght == 1) {
+								DrawCircle(50, 650, 42, WHITE);
+								DrawCircle(50, 650, 32, BLACK);
+							}
+							if (currentCreature.statusEfects[indexInStatusEffects].strenght == 2) {
+								DrawCircle(50, 650, 42, WHITE);
+							}
+
+						}
+
 					}
 					DrawTextureEx(ally_normal, { (float)(x * dis), (float)(y * dis) }, 0, (float)dis/ally_normal.width, RAYWHITE);
 					//DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/4, BLUE);
@@ -611,6 +709,21 @@ int main() {
 
 				if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && selectingSecondTile) {
 					moveCreature(firstPos.x, firstPos.y, extractedPath[Lenghts.extracted-1].x, extractedPath[Lenghts.extracted-1].y);//secondPos.x, secondPos.y);
+					updateCreatureCover(lenghtOfCreatureList, listOfAllCreatures, idOfselectedCreature, secondPos);
+					printf("HERERERRERE %i \n", listOfAllCreatures[idOfselectedCreature].lenghtOfStatusEfects);
+					for (int i = 0; i < listOfAllCreatures[idOfselectedCreature].lenghtOfStatusEfects; i++) {
+						printf("effect id: %i ", listOfAllCreatures[idOfselectedCreature].statusEfects[i].statusEffectId);
+						printf("strenght: %i ", listOfAllCreatures[idOfselectedCreature].statusEfects[i].strenght);
+						printf("orient: %f, %f ", listOfAllCreatures[idOfselectedCreature].statusEfects[i].orientation.x, listOfAllCreatures[idOfselectedCreature].statusEfects[i].orientation.y);
+						printf("effect id: %i \n", listOfAllCreatures[idOfselectedCreature].statusEfects[i].duration);
+
+					}
+					/*
+	int statusEffectId;
+	int strenght;
+	Vector2 orientation;
+	int duration;
+					*/
 					displayPath = false;
 					selectingSecondTile = false;
 				}
