@@ -10,6 +10,8 @@
 #define CLOSED_LIST_SIZE 1024
 #define MAX_AMOUNT_OF_CREATURES 1024
 #define BANNED_CREATURE_ID 255
+#define SCREEN_WIDTH 600
+#define SCREEN_HEIGHT 700
 
 #define MAX_LENGHT_OF_STATUS_EFFECTS 128
 #define STATUS_COVER_ID 1
@@ -23,13 +25,11 @@ enum Entity {
 	ENTITY_EMPTY,
 	ENTITY_LOOT
 };
-
 enum Cover {
 	NO_COVER,
 	HALF_COVER,
 	FULL_COVER
 };
-
 struct Vec2I {
 	int x;
 	int y;
@@ -40,8 +40,14 @@ struct StatusEfect {
 	Vector2 orientation;
 	int duration;
 };
+/*struct HotbarEntity {
+	int hotbarEntityValue;
+	int imageId;
+	int value;
+};*/
 struct CreatureData {
 	int creatureId;
+	int health;
 	int aim;
 	int actionPointsLeft;
 	int maxActions;
@@ -50,6 +56,7 @@ struct CreatureData {
 	int mobility;
 	StatusEfect statusEfects[MAX_LENGHT_OF_STATUS_EFFECTS];
 	int lenghtOfStatusEfects;
+
 };
 struct ListLengts {
 	int open;
@@ -65,6 +72,8 @@ int g_camY = 0;
 int g_costOfMovement = 10;
 int g_costOfDiagonalMovement = 14;
 int camSize = 6;
+bool g_playerTurn = true;
+bool g_enemyTurn = false;
 
 int isCordInBounds(int x, int y) {
 	return x >= 0 && x < MAP_SIZE&& y >= 0 && y < MAP_SIZE;
@@ -195,7 +204,6 @@ int removeIndexFromArrayVec2I(Vec2I* array, int lenghtOfArray ,int index) {
 }
 int removeIndexFromArrayStatusEffect(StatusEfect* array, int lenghtOfArray, int index) {
 	for (int i = index; i < lenghtOfArray; i++) {
-		printf("a");
 		array[i] = array[i + 1];
 	}
 	lenghtOfArray = lenghtOfArray - 1;
@@ -415,9 +423,9 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, /*Vec2I* openList, int MaxOpe
 
 	return lenghtOfLists;
 }
-int createCreature(Vec2I position, int lenghtOfCreatureList, int aim, int maxActions, int defense, bool isAlly, int agility, CreatureData* outlistOfAllCreatures) {
+int createCreature(Vec2I position, int lenghtOfCreatureList, int health, int aim, int maxActions, int defense, bool isAlly, int agility, CreatureData* outlistOfAllCreatures) {
 	if (isCordInBounds(position.x, position.y)) {
-		CreatureData newCreature = { lenghtOfCreatureList, aim, 0, maxActions, defense, isAlly, agility, {0,0} , 0};
+		CreatureData newCreature = { lenghtOfCreatureList, health, aim, maxActions, maxActions, defense, isAlly, agility, {0,0} , 0};
 		//g_creatureGrid[position.x, position.y] = (uint8_t)newCreature.creatureId;
 		outlistOfAllCreatures[lenghtOfCreatureList] = newCreature;
 		g_creatureGrid[position.x][position.y] = newCreature.creatureId;
@@ -514,10 +522,69 @@ void updateCreatureCover(int lenghtOfCreatureList, CreatureData* listOfAllCreatu
 	}	
 	listOfAllCreatures[idOfcreature] = currentCreature;
 }
+bool isMouseWithinPlayableArea() {
+	Vector2 mouse = GetMousePosition();
+	if (mouse.x > 0 && mouse.x < SCREEN_WIDTH && mouse.y > 0 && mouse.y < 600) {
+		return true;
+	}
+	else {
+		return false;
+	}
+	
+}
+void turnHandler(CreatureData* listOfAllCreatures, int lenghtOfCreatureList) {
+	int playerTurnsLeft = 0;
+	int enemyTurnsLeft = 0;
+
+	if (g_playerTurn) {
+		for (int i = 0; i < lenghtOfCreatureList; i++) {
+			CreatureData currentCreature = listOfAllCreatures[i];
+			if (currentCreature.isAlly && currentCreature.creatureId != BANNED_CREATURE_ID) {
+				playerTurnsLeft = playerTurnsLeft + currentCreature.actionPointsLeft;
+			}
+		}
+
+		if (playerTurnsLeft <= 0) {
+
+			for (int i = 0; i < lenghtOfCreatureList; i++) {
+				
+				if (!listOfAllCreatures[i].isAlly && listOfAllCreatures[i].creatureId != BANNED_CREATURE_ID) {
+					listOfAllCreatures[i].actionPointsLeft = listOfAllCreatures[i].maxActions;
+				}
+			}
+
+
+			g_playerTurn = false;
+			g_enemyTurn = true;
+			printf("END OF PLAYER TURN \n");
+			return;
+		}
+	}
+	
+	if (g_enemyTurn) {
+		for (int i = 0; i < lenghtOfCreatureList; i++) {
+
+			if (!listOfAllCreatures[i].isAlly && listOfAllCreatures[i].creatureId != BANNED_CREATURE_ID) {
+				enemyTurnsLeft = enemyTurnsLeft + listOfAllCreatures[i].actionPointsLeft;
+			}
+		}
+		if (enemyTurnsLeft <= 0) {
+			for (int i = 0; i < lenghtOfCreatureList; i++) {
+
+				if (listOfAllCreatures[i].isAlly && listOfAllCreatures[i].creatureId != BANNED_CREATURE_ID) {
+					listOfAllCreatures[i].actionPointsLeft = listOfAllCreatures[i].maxActions;
+				}
+			}
+
+			g_playerTurn = true;
+			g_enemyTurn = false;
+			printf("END OF ENEMY TURN \n");
+			return;
+		}
+	}
+}
 
 int main() {
-	const int screenWidth = 600;
-	const int screenHeight = 700;
 	bool displayPath = false;
 	bool displayPathDebug = false;
 	
@@ -561,9 +628,7 @@ int main() {
 	setTile(4, 2, TILE_BOX);
 	setTile(0, 0, TILE_BOX);
 
-	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 65, 2, 60, true, 4, listOfAllCreatures);
-	lenghtOfCreatureList = createCreature({ 1,2 }, lenghtOfCreatureList, 65, 2, 60, true, 4, listOfAllCreatures);
-
+	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 6, 65, 2, 60, true, 4, listOfAllCreatures);
 
 	for (int x = 0; x < MAP_SIZE; x++) {
 		for (int y = 0; y < MAP_SIZE; y++) {
@@ -576,14 +641,12 @@ int main() {
 	}
 
 
-	InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard input");
+	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Y-COM");
+
 	SetTargetFPS(60);
 	Texture2D ally_normal = LoadTexture("./textures/player_normal_001.png");
 	Texture2D floor_normal = LoadTexture("./textures/floor_basic_001.png");
 	Texture2D box_normal = LoadTexture("./textures/box_basic_001.png");
-	
-	//addStatusEffect(lenghtOfCreatureList, listOfAllCreatures, 0, { STATUS_COVER_ID, HALF_COVER, {1,1}, 0});
-
 
 	while (!WindowShouldClose()) {
 		BeginDrawing();	
@@ -618,7 +681,6 @@ int main() {
 				}
 				if (idOfSearchedCreature != BANNED_CREATURE_ID) {
 					if (idOfSearchedCreature == idOfselectedCreature) {
-						//DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/3, BLACK);
 						Vector2 cornerLU[3] = { {(float)x * dis, (float)y * dis + dis/3}, {(float)x * dis + dis / 3, (float)y * dis}, {(float)x * dis, (float)y * dis} };
 						Vector2 cornerRU[3] = { {(float)x * dis + dis, (float)y * dis + dis / 3}, {(float)x * dis + dis - dis / 3, (float)y * dis}, {(float)x * dis + dis, (float)y * dis} } ;
 						Vector2 cornerLB[3] = {{(float)x * dis, (float)y * dis + dis - dis / 3} , {(float)x * dis + dis / 3, (float)y * dis + dis}, {(float)x * dis, (float)y * dis + dis}};
@@ -629,21 +691,23 @@ int main() {
 						DrawLineBezierQuad(cornerLB[0], cornerLB[1], cornerLB[2], 2, WHITE);
 						DrawLineBezierQuad(cornerRB[0], cornerRB[1], cornerRB[2], 2, WHITE);
 
-
 						CreatureData currentCreature = listOfAllCreatures[idOfselectedCreature];
+						
+						DrawText(TextFormat("HEALTH: %i", currentCreature.health), 5, 620, 15, WHITE);
+						DrawText(TextFormat("AP: %i", currentCreature.actionPointsLeft), 5, 640, 15, WHITE);
+
+						
 						if (currentCreature.lenghtOfStatusEfects != 0) {
 							int indexInStatusEffects = findIndexOfStatusEffectByID(currentCreature, STATUS_COVER_ID);
 
 							if (currentCreature.statusEfects[indexInStatusEffects].strenght == 1) {
-								DrawCircle(50, 650, 42, WHITE);
-								DrawCircle(50, 650, 32, BLACK);
+								DrawCircle(150, 650, 42, WHITE);
+								DrawCircle(150, 650, 32, BLACK);
 							}
 							if (currentCreature.statusEfects[indexInStatusEffects].strenght == 2) {
-								DrawCircle(50, 650, 42, WHITE);
+								DrawCircle(150, 650, 42, WHITE);
 							}
-
 						}
-
 					}
 					DrawTextureEx(ally_normal, { (float)(x * dis), (float)(y * dis) }, 0, (float)dis/ally_normal.width, RAYWHITE);
 					//DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/4, BLUE);
@@ -681,54 +745,47 @@ int main() {
 		if (IsKeyReleased(KEY_W)) g_camY--;
 		if (IsKeyReleased(KEY_A)) g_camX--;
 		if (IsKeyReleased(KEY_D)) g_camX++;
-
 		
 		if (IsKeyReleased(KEY_SPACE)) { idOfselectedCreature = BANNED_CREATURE_ID; displayPath = false; selectingSecondTile = false; }
-		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-			if (selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
+		
+		if (g_playerTurn) {
+			if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isMouseWithinPlayableArea()) {
+				if (selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
 
-			}else {
-				idOfselectedCreature = selectCreature(GetMousePosition());
-				selectingSecondTile = false;
-				displayPath = false;
-			}
-		}
-		if (idOfselectedCreature != BANNED_CREATURE_ID && selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
-			Vec2I secondPos = calculatePosition(GetMousePosition());
-			if (getTile(secondPos.x, secondPos.y) == TILE_FLOOR) {
-				Vec2I firstPos = findLocationOfCreatureByID(idOfselectedCreature);
-
-				Lenghts = findPathA(firstPos, secondPos, /*openList, OPEN_LIST_SIZE, closedList, CLOSED_LIST_SIZE, adjacentCordsBuffer,*/ extractedPath);
-
-				if (Lenghts.extracted > listOfAllCreatures[idOfselectedCreature].mobility + 1) {
-					Lenghts.extracted = listOfAllCreatures[idOfselectedCreature].mobility + 1;
 				}
-				displayPath = true;
-				selectingSecondTile = true;
-				//printf("display time? : %i, %i \n", Lenghts.extracted, Lenghts.closed);
-
-				if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && selectingSecondTile) {
-					moveCreature(firstPos.x, firstPos.y, extractedPath[Lenghts.extracted-1].x, extractedPath[Lenghts.extracted-1].y);//secondPos.x, secondPos.y);
-					updateCreatureCover(lenghtOfCreatureList, listOfAllCreatures, idOfselectedCreature, secondPos);
-					printf("HERERERRERE %i \n", listOfAllCreatures[idOfselectedCreature].lenghtOfStatusEfects);
-					for (int i = 0; i < listOfAllCreatures[idOfselectedCreature].lenghtOfStatusEfects; i++) {
-						printf("effect id: %i ", listOfAllCreatures[idOfselectedCreature].statusEfects[i].statusEffectId);
-						printf("strenght: %i ", listOfAllCreatures[idOfselectedCreature].statusEfects[i].strenght);
-						printf("orient: %f, %f ", listOfAllCreatures[idOfselectedCreature].statusEfects[i].orientation.x, listOfAllCreatures[idOfselectedCreature].statusEfects[i].orientation.y);
-						printf("effect id: %i \n", listOfAllCreatures[idOfselectedCreature].statusEfects[i].duration);
-
-					}
-					/*
-	int statusEffectId;
-	int strenght;
-	Vector2 orientation;
-	int duration;
-					*/
-					displayPath = false;
+				else {
+					idOfselectedCreature = selectCreature(GetMousePosition());
 					selectingSecondTile = false;
+					displayPath = false;
+				}
+			}
+			if (idOfselectedCreature != BANNED_CREATURE_ID && selectCreature(GetMousePosition()) == BANNED_CREATURE_ID && isMouseWithinPlayableArea() && listOfAllCreatures[idOfselectedCreature].actionPointsLeft > 0) {
+				Vec2I secondPos = calculatePosition(GetMousePosition());
+				if (getTile(secondPos.x, secondPos.y) == TILE_FLOOR) {
+					Vec2I firstPos = findLocationOfCreatureByID(idOfselectedCreature);
+
+					Lenghts = findPathA(firstPos, secondPos, /*openList, OPEN_LIST_SIZE, closedList, CLOSED_LIST_SIZE, adjacentCordsBuffer,*/ extractedPath);
+
+					if (Lenghts.extracted > listOfAllCreatures[idOfselectedCreature].mobility + 1) {
+						Lenghts.extracted = listOfAllCreatures[idOfselectedCreature].mobility + 1;
+					}
+					displayPath = true;
+					selectingSecondTile = true;
+					//printf("display time? : %i, %i \n", Lenghts.extracted, Lenghts.closed);
+
+					if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && selectingSecondTile) {
+						moveCreature(firstPos.x, firstPos.y, extractedPath[Lenghts.extracted - 1].x, extractedPath[Lenghts.extracted - 1].y);//secondPos.x, secondPos.y);
+						listOfAllCreatures[idOfselectedCreature].actionPointsLeft = listOfAllCreatures[idOfselectedCreature].actionPointsLeft--;
+						updateCreatureCover(lenghtOfCreatureList, listOfAllCreatures, idOfselectedCreature, secondPos);
+
+						displayPath = false;
+						selectingSecondTile = false;
+					}
 				}
 			}
 		}
+		
+		turnHandler(listOfAllCreatures, lenghtOfCreatureList);
 		EndDrawing();
 	}
 	CloseWindow();
