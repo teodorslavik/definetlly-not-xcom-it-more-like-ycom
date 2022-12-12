@@ -35,8 +35,14 @@ enum Cover {
 };
 enum actionsIDs {
 	MOVE,
-	FIRE,
+	FIRE_PRIMARY_WEAPON,
 	HEAL
+};
+enum weaponIDs {
+	BASE_AR,
+	SHOTGUN,
+	SNIPER,
+	LMG
 };
 struct Vec2I {
 	int x;
@@ -53,6 +59,12 @@ struct StatusEfect {
 	int imageId;
 	int value;
 };*/
+struct Weapon {
+	int idOfWeapon;
+	int maxAmmo;
+	int currentAmmo;
+	int optimalRange;
+};
 struct action {
 	int actionPointCost;
 	bool endsTurn;
@@ -74,7 +86,7 @@ struct CreatureData {
 	int lenghtOfStatusEfects;
 	action actions[MAX_LENGHT_OF_ACTIONS];
 	int lenghtOfActions;
-
+	Weapon primaryWeapon;
 };
 struct ListLengts {
 	int open;
@@ -98,7 +110,7 @@ int isCordInBounds(int x, int y) {
 }
 Vec2I calculatePosition(Vector2 position) {
 
-	return Vec2I{ (int)(position.x / (100 * 6/camSize)) + g_camX , (int)(position.y / (100 * 6 / camSize)) + g_camY };
+	return Vec2I{ (int)(position.x / (100 * 6 / camSize)) + g_camX , (int)(position.y / (100 * 6 / camSize)) + g_camY };
 }
 int getTile(int x, int y) {
 	if (!isCordInBounds(x, y)) {
@@ -213,7 +225,7 @@ void findAdjacentCords(Vec2I position, Vec2I* adjacentCordsBuffer) {
 	adjacentCordsBuffer[6] = { position.x, position.y + 1 };
 	adjacentCordsBuffer[7] = { position.x + 1, position.y + 1 };
 }
-int removeIndexFromArrayVec2I(Vec2I* array, int lenghtOfArray ,int index) {
+int removeIndexFromArrayVec2I(Vec2I* array, int lenghtOfArray, int index) {
 	for (int i = index; i < lenghtOfArray; i++) {
 		array[i] = array[i + 1];
 	}
@@ -347,7 +359,7 @@ ListLengts findPathA(Vec2I startPos, Vec2I endPos, /*Vec2I* openList, int MaxOpe
 		}
 		for (int i = 0; i < lenghtOfLists.open; i++) {
 			//printf("open: %i, %i \n", openList[i].x, openList[i].y);
-		}		
+		}
 		for (int i = 0; i < lenghtOfLists.closed; i++) {
 			//printf("closed: %i, %i \n", closedList[i].x, closedList[i].y);
 		}
@@ -453,15 +465,46 @@ void addActionsToCreature(CreatureData* listOfAllCreatures, int lenghtOfCreature
 	listOfAllCreatures[idOfCreature].actions[listOfAllCreatures[idOfCreature].lenghtOfActions] = Action;
 	listOfAllCreatures[idOfCreature].lenghtOfActions++;
 }
-int createCreature(Vec2I position, int lenghtOfCreatureList, int health, int aim, int maxActions, int defense, bool isAlly, int agility, CreatureData* outlistOfAllCreatures) {
+int createCreature(Vec2I position, int lenghtOfCreatureList, int health, int aim, int maxActions, int defense, bool isAlly, int mobility, CreatureData* outlistOfAllCreatures, Weapon firstWeapon) {
 	if (isCordInBounds(position.x, position.y)) {
-		CreatureData newCreature = { lenghtOfCreatureList, health, aim, maxActions, maxActions, defense, isAlly, agility, {0,0} , 0};
+		CreatureData newCreature = {};
+		newCreature.creatureId = lenghtOfCreatureList;
+		newCreature.health = health;
+		newCreature.aim = aim;
+		newCreature.actionPointsLeft = maxActions;
+		newCreature.maxActions = maxActions;
+		newCreature.defense = defense;
+		newCreature.isAlly = isAlly;
+		newCreature.mobility = mobility;
+		//newCreature.statusEfects = [];
+		newCreature.lenghtOfStatusEfects = 0;
+		//newCreature.actions = [];
+		newCreature.lenghtOfActions = 0;
+		newCreature.primaryWeapon = firstWeapon;
+
 		//g_creatureGrid[position.x, position.y] = (uint8_t)newCreature.creatureId;
 		outlistOfAllCreatures[lenghtOfCreatureList] = newCreature;
 		g_creatureGrid[position.x][position.y] = newCreature.creatureId;
 		lenghtOfCreatureList++;
+		//};
+		/*
+		int creatureId;
+		int health;
+		int aim;
+		int actionPointsLeft;
+		int maxActions;
+		int defense;
+		bool isAlly;
+		int mobility;
+		StatusEfect statusEfects[MAX_LENGHT_OF_STATUS_EFFECTS];
+		int lenghtOfStatusEfects;
+		action actions[MAX_LENGHT_OF_ACTIONS];
+		int lenghtOfActions;
+		Weapon primaryWeapon;*/
+
 		addActionsToCreature(outlistOfAllCreatures, lenghtOfCreatureList, newCreature.creatureId, { 1,false,MOVE,NO_SPECIAL_EFFECT_ID,0,0 });
-			
+		addActionsToCreature(outlistOfAllCreatures, lenghtOfCreatureList, newCreature.creatureId, { 1,true,FIRE_PRIMARY_WEAPON,NO_SPECIAL_EFFECT_ID,0,0 });
+
 	}
 
 	return lenghtOfCreatureList;
@@ -511,11 +554,11 @@ int getCoverOfTile(Vec2I position) {
 void updateCreatureCover(int lenghtOfCreatureList, CreatureData* listOfAllCreatures, int idOfcreature, Vec2I position) {
 	Vec2I adjacentCordsBuffer[4];
 	adjacentCordsBuffer[0] = { position.x, position.y - 1 };
-	adjacentCordsBuffer[1] = { position.x - 1, position.y};
+	adjacentCordsBuffer[1] = { position.x - 1, position.y };
 	adjacentCordsBuffer[2] = { position.x, position.y + 1 };
 	adjacentCordsBuffer[3] = { position.x + 1, position.y };
 
-	
+
 	CreatureData currentCreature = listOfAllCreatures[idOfcreature];
 
 	int indexesToDelete[MAX_LENGHT_OF_STATUS_EFFECTS];
@@ -533,7 +576,7 @@ void updateCreatureCover(int lenghtOfCreatureList, CreatureData* listOfAllCreatu
 
 	for (int i = 0; i < 8; i++) {
 		int coverStatus = getCoverOfTile(adjacentCordsBuffer[i]);
-		
+
 		if (coverStatus == HALF_COVER) {
 
 			Vector2 VectorOfTwoPoints; // AB->
@@ -543,7 +586,7 @@ void updateCreatureCover(int lenghtOfCreatureList, CreatureData* listOfAllCreatu
 			//double SizeOfVector = sqrt(VectorOfTwoPoints.x * VectorOfTwoPoints.x + VectorOfTwoPoints.y * VectorOfTwoPoints.y);
 			//Vector2 NormalaisedVector = { VectorOfTwoPoints.x/SizeOfVector, VectorOfTwoPoints.y / SizeOfVector };
 
-			StatusEfect statusEfect = { STATUS_COVER_ID, HALF_COVER, VectorOfTwoPoints/*NormalaisedVector8*/, 0};
+			StatusEfect statusEfect = { STATUS_COVER_ID, HALF_COVER, VectorOfTwoPoints/*NormalaisedVector8*/, 0 };
 
 			currentCreature.statusEfects[currentCreature.lenghtOfStatusEfects] = statusEfect;
 			currentCreature.lenghtOfStatusEfects = currentCreature.lenghtOfStatusEfects + 1;
@@ -551,7 +594,7 @@ void updateCreatureCover(int lenghtOfCreatureList, CreatureData* listOfAllCreatu
 
 
 		}
-	}	
+	}
 	listOfAllCreatures[idOfcreature] = currentCreature;
 }
 bool isMouseWithinPlayableArea() {
@@ -562,7 +605,7 @@ bool isMouseWithinPlayableArea() {
 	else {
 		return false;
 	}
-	
+
 }
 void turnHandler(CreatureData* listOfAllCreatures, int lenghtOfCreatureList) {
 	int playerTurnsLeft = 0;
@@ -579,7 +622,7 @@ void turnHandler(CreatureData* listOfAllCreatures, int lenghtOfCreatureList) {
 		if (playerTurnsLeft <= 0) {
 
 			for (int i = 0; i < lenghtOfCreatureList; i++) {
-				
+
 				if (!listOfAllCreatures[i].isAlly && listOfAllCreatures[i].creatureId != BANNED_CREATURE_ID) {
 					listOfAllCreatures[i].actionPointsLeft = listOfAllCreatures[i].maxActions;
 				}
@@ -592,7 +635,7 @@ void turnHandler(CreatureData* listOfAllCreatures, int lenghtOfCreatureList) {
 			return;
 		}
 	}
-	
+
 	if (g_enemyTurn) {
 		//TEMPORARAY
 
@@ -602,7 +645,7 @@ void turnHandler(CreatureData* listOfAllCreatures, int lenghtOfCreatureList) {
 				listOfAllCreatures[i].actionPointsLeft = listOfAllCreatures[i].maxActions;
 			}
 		}
-	
+
 		g_playerTurn = true;
 		g_enemyTurn = false;
 		printf("END OF ENEMY TURN (HARDSTOP TEMP)\n");
@@ -625,23 +668,33 @@ void turnHandler(CreatureData* listOfAllCreatures, int lenghtOfCreatureList) {
 			g_playerTurn = true;
 			g_enemyTurn = false;
 			printf("END OF ENEMY TURN \n");
-			
+
 		}
 	}
 }
-
+bool checkIfCreatureHasSpecificAction(CreatureData* listOfAllCreatures, int idOfCreature, int action) {
+	if (idOfCreature == BANNED_CREATURE_ID) {
+		return false;
+	}
+	for (int i = 0; i < listOfAllCreatures[idOfCreature].lenghtOfActions; i++) {
+		if (listOfAllCreatures[idOfCreature].actions[i].actionId == action) {
+			return true;
+		}
+	}
+	return false;
+}
 
 int main() {
 	bool displayPath = false;
 	bool displayPathDebug = false;
-	
+
 	int defaultCamSize = 6;
 	int minCamSize = 3;
 	int maxCamSize = 12;
 
 	camSize = defaultCamSize;
 
-	int dis = 60/camSize * 10;
+	int dis = 60 / camSize * 10;
 	bool choosingFirstTile = false;
 	bool choosingSecondTile = false;
 	Vec2I firstSelectedPosition;
@@ -649,7 +702,7 @@ int main() {
 	Vec2I pathBuffer[PATH_BUFFER_SIZE];
 	Vec2I extractedPath[PATH_BUFFER_SIZE];
 
-	ListLengts Lenghts = {0,0,0};
+	ListLengts Lenghts = { 0,0,0 };
 	int moveLimit = 5;
 	int idOfselectedCreature = BANNED_CREATURE_ID;
 	bool selectingSecondTile = false;
@@ -657,7 +710,7 @@ int main() {
 	static CreatureData listOfAllCreatures[MAX_AMOUNT_OF_CREATURES];
 	int lenghtOfCreatureList = 0;
 
-	for (int x = 0;x < MAP_SIZE ; x++) {
+	for (int x = 0; x < MAP_SIZE; x++) {
 		for (int y = 0; y < MAP_SIZE; y++) {
 			g_creatureGrid[x][y] = BANNED_CREATURE_ID;
 		}
@@ -675,8 +728,8 @@ int main() {
 	setTile(4, 2, TILE_BOX);
 	setTile(0, 0, TILE_BOX);
 
-	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 6, 65, 2, 60, true, 4, listOfAllCreatures);
-	lenghtOfCreatureList = createCreature({ 2,1 }, lenghtOfCreatureList, 6, 65, 2, 60, false, 4, listOfAllCreatures);
+	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 6, 65, 2, 60, true, 4, listOfAllCreatures, { BASE_AR, 4, 4, 1 });
+	lenghtOfCreatureList = createCreature({ 2,1 }, lenghtOfCreatureList, 6, 65, 2, 60, false, 4, listOfAllCreatures, { BASE_AR, 4, 4, 1 });
 
 	for (int x = 0; x < MAP_SIZE; x++) {
 		for (int y = 0; y < MAP_SIZE; y++) {
@@ -697,13 +750,13 @@ int main() {
 	Texture2D box_normal = LoadTexture("./textures/box_basic_001.png");
 
 	while (!WindowShouldClose()) {
-		BeginDrawing();	
+		BeginDrawing();
 		ClearBackground(BLACK);
-		
+
 
 		if (GetMouseWheelMove() == -1 && camSize < maxCamSize) camSize++;
 		if (GetMouseWheelMove() == 1 && camSize > minCamSize) camSize--;
-		
+
 		dis = (int)((6 / (float)camSize) * 100);
 
 		for (int x = 0; x < camSize; x++) {
@@ -715,7 +768,7 @@ int main() {
 
 				if (tile == TILE_FLOOR) {
 					int rotations[4] = { 0,90,180,270 };
-					DrawTextureEx(floor_normal, { (float)(x * dis), (float)(y * dis) }, rotations[0/*GetRandomValue(0, 3) */], (float)(dis-1) / floor_normal.width, RAYWHITE);
+					DrawTextureEx(floor_normal, { (float)(x * dis), (float)(y * dis) }, rotations[0/*GetRandomValue(0, 3) */], (float)(dis - 1) / floor_normal.width, RAYWHITE);
 
 				}
 				else if (tile == TILE_BOX) {
@@ -725,13 +778,13 @@ int main() {
 				}
 
 				if (entity == ENTITY_LOOT) {
-					DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/4, GOLD);
+					DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis / 4, GOLD);
 				}
 				if (idOfSearchedCreature != BANNED_CREATURE_ID) {
 					if (idOfSearchedCreature == idOfselectedCreature) {
-						Vector2 cornerLU[3] = { {(float)x * dis, (float)y * dis + dis/3}, {(float)x * dis + dis / 3, (float)y * dis}, {(float)x * dis, (float)y * dis} };
-						Vector2 cornerRU[3] = { {(float)x * dis + dis, (float)y * dis + dis / 3}, {(float)x * dis + dis - dis / 3, (float)y * dis}, {(float)x * dis + dis, (float)y * dis} } ;
-						Vector2 cornerLB[3] = {{(float)x * dis, (float)y * dis + dis - dis / 3} , {(float)x * dis + dis / 3, (float)y * dis + dis}, {(float)x * dis, (float)y * dis + dis}};
+						Vector2 cornerLU[3] = { {(float)x * dis, (float)y * dis + dis / 3}, {(float)x * dis + dis / 3, (float)y * dis}, {(float)x * dis, (float)y * dis} };
+						Vector2 cornerRU[3] = { {(float)x * dis + dis, (float)y * dis + dis / 3}, {(float)x * dis + dis - dis / 3, (float)y * dis}, {(float)x * dis + dis, (float)y * dis} };
+						Vector2 cornerLB[3] = { {(float)x * dis, (float)y * dis + dis - dis / 3} , {(float)x * dis + dis / 3, (float)y * dis + dis}, {(float)x * dis, (float)y * dis + dis} };
 						Vector2 cornerRB[3] = { {(float)x * dis + dis, (float)y * dis + dis - dis / 3} , {(float)x * dis + dis - dis / 3, (float)y * dis + dis} , {(float)x * dis + dis, (float)y * dis + dis} };
 
 						DrawLineBezierQuad(cornerLU[0], cornerLU[1], cornerLU[2], 2, WHITE);
@@ -740,11 +793,13 @@ int main() {
 						DrawLineBezierQuad(cornerRB[0], cornerRB[1], cornerRB[2], 2, WHITE);
 
 						CreatureData currentCreature = listOfAllCreatures[idOfselectedCreature];
-						
+
 						DrawText(TextFormat("HEALTH: %i", currentCreature.health), 5, 620, 15, WHITE);
 						DrawText(TextFormat("AP: %i", currentCreature.actionPointsLeft), 5, 640, 15, WHITE);
+						DrawText(TextFormat("GUN ID: %i", currentCreature.primaryWeapon.idOfWeapon), 5, 660, 15, WHITE);
+						DrawText(TextFormat("AMMO: %i", currentCreature.primaryWeapon.currentAmmo), 5, 680, 15, WHITE);
 
-						
+
 						if (currentCreature.lenghtOfStatusEfects != 0) {
 							int indexInStatusEffects = findIndexOfStatusEffectByID(currentCreature, STATUS_COVER_ID);
 
@@ -763,7 +818,7 @@ int main() {
 					if (listOfAllCreatures[idOfSearchedCreature].isAlly == false) {
 						DrawTextureEx(ally_normal, { (float)(x * dis), (float)(y * dis) }, 0, (float)dis / ally_normal.width, RED);
 					}
-					
+
 					//DrawCircle(x * dis + dis / 2, y * dis + dis / 2, dis/4, BLUE);
 				}
 			}
@@ -783,7 +838,7 @@ int main() {
 		}*/
 		if (displayPath) {
 			for (int i = 1; i < Lenghts.extracted; i++) {
-				Vector2 start = { extractedPath[i-1].x * dis + dis / 2 - g_camX * dis, extractedPath[i-1].y * dis + dis / 2 - g_camY * dis };
+				Vector2 start = { extractedPath[i - 1].x * dis + dis / 2 - g_camX * dis, extractedPath[i - 1].y * dis + dis / 2 - g_camY * dis };
 				Vector2 end = { extractedPath[i].x * dis + dis / 2 - g_camX * dis, extractedPath[i].y * dis + dis / 2 - g_camY * dis };
 				DrawLineEx(start, end, 4, YELLOW);
 
@@ -794,14 +849,25 @@ int main() {
 
 		if (choosingFirstTile) DrawRectangle(0, 0, 10, 10, YELLOW);
 		if (choosingSecondTile) DrawRectangle(10, 0, 10, 10, BLUE);
-		
+
 		if (IsKeyReleased(KEY_S)) g_camY++;
 		if (IsKeyReleased(KEY_W)) g_camY--;
 		if (IsKeyReleased(KEY_A)) g_camX--;
 		if (IsKeyReleased(KEY_D)) g_camX++;
-		
+
+		if (IsKeyReleased(KEY_F) && idOfselectedCreature != BANNED_CREATURE_ID) {
+			bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON);
+			bool checkAlly = listOfAllCreatures[idOfselectedCreature].isAlly;
+			bool checkAmmo = false;
+			if (listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo > 0) { checkAmmo = true; }
+
+			if (checkAction && checkAlly && checkAmmo) {
+				listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo--;
+			}
+		};
+
 		if (IsKeyReleased(KEY_SPACE)) { idOfselectedCreature = BANNED_CREATURE_ID; displayPath = false; selectingSecondTile = false; }
-		
+
 		if (g_playerTurn) {
 			if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isMouseWithinPlayableArea()) {
 				if (selectCreature(GetMousePosition()) == BANNED_CREATURE_ID) {
@@ -838,7 +904,7 @@ int main() {
 				}
 			}
 		}
-		
+
 		turnHandler(listOfAllCreatures, lenghtOfCreatureList);
 		EndDrawing();
 	}
