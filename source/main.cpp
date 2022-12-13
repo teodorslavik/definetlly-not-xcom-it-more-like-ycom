@@ -16,6 +16,7 @@
 #define MAX_LENGHT_OF_STATUS_EFFECTS 128
 #define MAX_LENGHT_OF_ACTIONS 128
 #define STATUS_COVER_ID 1
+#define ACTION_NOT_FOUND_ID 127
 
 #define NO_SPECIAL_EFFECT_ID 0
 
@@ -36,7 +37,8 @@ enum Cover {
 enum actionsIDs {
 	MOVE,
 	FIRE_PRIMARY_WEAPON,
-	HEAL
+	HEAL,
+	RELOAD
 };
 enum weaponIDs {
 	BASE_AR,
@@ -504,7 +506,7 @@ int createCreature(Vec2I position, int lenghtOfCreatureList, int health, int aim
 
 		addActionsToCreature(outlistOfAllCreatures, lenghtOfCreatureList, newCreature.creatureId, { 1,false,MOVE,NO_SPECIAL_EFFECT_ID,0,0 });
 		addActionsToCreature(outlistOfAllCreatures, lenghtOfCreatureList, newCreature.creatureId, { 1,true,FIRE_PRIMARY_WEAPON,NO_SPECIAL_EFFECT_ID,0,0 });
-
+		addActionsToCreature(outlistOfAllCreatures, lenghtOfCreatureList, newCreature.creatureId, { 1,false,RELOAD,NO_SPECIAL_EFFECT_ID,0,0 });
 	}
 
 	return lenghtOfCreatureList;
@@ -683,6 +685,18 @@ bool checkIfCreatureHasSpecificAction(CreatureData* listOfAllCreatures, int idOf
 	}
 	return false;
 }
+int findActionOnCreatureByID(CreatureData* listOfAllCreatures, int idOfCreature, int ActionID) {
+	if (checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfCreature, ActionID) == false) {
+		return ACTION_NOT_FOUND_ID;
+	}
+
+	for (int i = 0; i < listOfAllCreatures[idOfCreature].lenghtOfActions; i++) {
+		if (listOfAllCreatures[idOfCreature].actions[i].actionId == ActionID) {
+			return i;
+		}
+	}
+	return ACTION_NOT_FOUND_ID;
+}
 
 int main() {
 	bool displayPath = false;
@@ -855,6 +869,19 @@ int main() {
 		if (IsKeyReleased(KEY_A)) g_camX--;
 		if (IsKeyReleased(KEY_D)) g_camX++;
 
+		if (IsKeyReleased(KEY_R) && idOfselectedCreature != BANNED_CREATURE_ID) {
+			bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, RELOAD);
+			bool checkAlly = listOfAllCreatures[idOfselectedCreature].isAlly;
+			bool isAmmoMax = false;
+			bool hasEnoughActionPoints = false;
+			if (listOfAllCreatures[idOfselectedCreature].actionPointsLeft >= findActionOnCreatureByID) { isAmmoMax = true; }
+			if (listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo == listOfAllCreatures[idOfselectedCreature].primaryWeapon.maxAmmo) { isAmmoMax = true; }
+
+			if (checkAction && checkAlly && !isAmmoMax) {
+				listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo = listOfAllCreatures[idOfselectedCreature].primaryWeapon.maxAmmo;
+			}
+		};
+
 		if (IsKeyReleased(KEY_F) && idOfselectedCreature != BANNED_CREATURE_ID) {
 			bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON);
 			bool checkAlly = listOfAllCreatures[idOfselectedCreature].isAlly;
@@ -879,7 +906,7 @@ int main() {
 					displayPath = false;
 				}
 			}
-			if (idOfselectedCreature != BANNED_CREATURE_ID && selectCreature(GetMousePosition()) == BANNED_CREATURE_ID && isMouseWithinPlayableArea() && listOfAllCreatures[idOfselectedCreature].actionPointsLeft > 0 && listOfAllCreatures[idOfselectedCreature].isAlly) {
+			if (idOfselectedCreature != BANNED_CREATURE_ID && selectCreature(GetMousePosition()) == BANNED_CREATURE_ID && isMouseWithinPlayableArea() && listOfAllCreatures[idOfselectedCreature].actionPointsLeft > 0 && listOfAllCreatures[idOfselectedCreature].isAlly && checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, MOVE)) {
 				Vec2I secondPos = calculatePosition(GetMousePosition());
 				if (getTile(secondPos.x, secondPos.y) == TILE_FLOOR) {
 					Vec2I firstPos = findLocationOfCreatureByID(idOfselectedCreature);
