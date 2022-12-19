@@ -697,7 +697,59 @@ int findActionOnCreatureByID(CreatureData* listOfAllCreatures, int idOfCreature,
 	}
 	return ACTION_NOT_FOUND_ID;
 }
+bool checkActions(CreatureData* listOfAllCreatures, int idOfCreature,  int actionID) {
+	bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfCreature, actionID);
+	bool checkAlly = listOfAllCreatures[idOfCreature].isAlly;
+	bool hasEnoughActionPoints = false;
+	
+	if (checkAction && checkAlly) {
+		if (actionID == RELOAD) {
+			bool isAmmoMax = false;
+			if (listOfAllCreatures[idOfCreature].actionPointsLeft >= listOfAllCreatures[idOfCreature].actions[findActionOnCreatureByID(listOfAllCreatures, idOfCreature, RELOAD)].actionPointCost) { hasEnoughActionPoints = true; }
+			if (listOfAllCreatures[idOfCreature].primaryWeapon.currentAmmo == listOfAllCreatures[idOfCreature].primaryWeapon.maxAmmo) { isAmmoMax = true; }
+			if (!isAmmoMax && hasEnoughActionPoints) { 
+				
+				return true; 
+			}
+		}
+		if (actionID == FIRE_PRIMARY_WEAPON) {
+			bool checkAmmo = false;
+			if (listOfAllCreatures[idOfCreature].primaryWeapon.currentAmmo > 0) { checkAmmo = true; }
+			if (listOfAllCreatures[idOfCreature].actionPointsLeft >= listOfAllCreatures[idOfCreature].actions[findActionOnCreatureByID(listOfAllCreatures, idOfCreature, FIRE_PRIMARY_WEAPON)].actionPointCost) { hasEnoughActionPoints = true; }
+			
+			if (checkAmmo && hasEnoughActionPoints) {
+				return true;
+			}
+		}
+	}
 
+	return false;
+}
+/*
+bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON);
+bool checkAlly = listOfAllCreatures[idOfselectedCreature].isAlly;
+bool checkAmmo = false;
+bool hasEnoughActionPoints = false;
+if (listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo > 0) { checkAmmo = true; }
+if (listOfAllCreatures[idOfselectedCreature].actionPointsLeft >= listOfAllCreatures[idOfselectedCreature].actions[findActionOnCreatureByID(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON)].actionPointCost) { hasEnoughActionPoints = true; }
+
+if (checkAction && checkAlly && checkAmmo && hasEnoughActionPoints) {
+	listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo--;
+	listOfAllCreatures[idOfselectedCreature].actionPointsLeft = 0;
+}
+
+			bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON);
+			bool checkAlly = listOfAllCreatures[idOfselectedCreature].isAlly;
+			bool checkAmmo = false;
+			bool hasEnoughActionPoints = false;
+			if (listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo > 0) { checkAmmo = true; }
+			if (listOfAllCreatures[idOfselectedCreature].actionPointsLeft >= listOfAllCreatures[idOfselectedCreature].actions[findActionOnCreatureByID(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON)].actionPointCost) { hasEnoughActionPoints = true; }
+
+			if (checkAction && checkAlly && checkAmmo && hasEnoughActionPoints) {
+				listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo--;
+				listOfAllCreatures[idOfselectedCreature].actionPointsLeft = 0;
+			}
+*/
 int main() {
 	bool displayPath = false;
 	bool displayPathDebug = false;
@@ -715,6 +767,7 @@ int main() {
 	int pathLenght = 0;
 	Vec2I pathBuffer[PATH_BUFFER_SIZE];
 	Vec2I extractedPath[PATH_BUFFER_SIZE];
+	bool fireDialog = false;
 
 	ListLengts Lenghts = { 0,0,0 };
 	int moveLimit = 5;
@@ -741,7 +794,7 @@ int main() {
 	setTile(3, 2, TILE_BOX);
 	setTile(4, 2, TILE_BOX);
 	setTile(0, 0, TILE_BOX);
-
+	lenghtOfCreatureList = createCreature({ 0,1 }, lenghtOfCreatureList, 6, 65, 2, 60, true, 4, listOfAllCreatures, { BASE_AR, 4, 4, 1 });
 	lenghtOfCreatureList = createCreature({ 1,1 }, lenghtOfCreatureList, 6, 65, 2, 60, true, 4, listOfAllCreatures, { BASE_AR, 4, 4, 1 });
 	lenghtOfCreatureList = createCreature({ 2,1 }, lenghtOfCreatureList, 6, 65, 2, 60, false, 4, listOfAllCreatures, { BASE_AR, 4, 4, 1 });
 
@@ -869,32 +922,23 @@ int main() {
 		if (IsKeyReleased(KEY_A)) g_camX--;
 		if (IsKeyReleased(KEY_D)) g_camX++;
 
-		if (IsKeyReleased(KEY_R) && idOfselectedCreature != BANNED_CREATURE_ID) {
-			bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, RELOAD);
-			bool checkAlly = listOfAllCreatures[idOfselectedCreature].isAlly;
-			bool isAmmoMax = false;
-			bool hasEnoughActionPoints = false;
-			if (listOfAllCreatures[idOfselectedCreature].actionPointsLeft >= listOfAllCreatures[idOfselectedCreature].actions[findActionOnCreatureByID(listOfAllCreatures, idOfselectedCreature, RELOAD)].actionPointCost ) { hasEnoughActionPoints = true; }
-			if (listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo == listOfAllCreatures[idOfselectedCreature].primaryWeapon.maxAmmo) { isAmmoMax = true; }
-			
-			if (checkAction && checkAlly && !isAmmoMax && hasEnoughActionPoints) {
-				listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo = listOfAllCreatures[idOfselectedCreature].primaryWeapon.maxAmmo;
-				listOfAllCreatures[idOfselectedCreature].actionPointsLeft--;
-			}
+		if (IsKeyReleased(KEY_R) && idOfselectedCreature != BANNED_CREATURE_ID && checkActions(listOfAllCreatures, idOfselectedCreature, RELOAD)) {
+			listOfAllCreatures[idOfselectedCreature].actionPointsLeft--;
+			listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo = listOfAllCreatures[idOfselectedCreature].primaryWeapon.maxAmmo;
 		};
 
-		if (IsKeyReleased(KEY_F) && idOfselectedCreature != BANNED_CREATURE_ID) {
+		if (IsKeyReleased(KEY_F) && idOfselectedCreature != BANNED_CREATURE_ID && checkActions(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON)) {
+			/*
 			bool checkAction = checkIfCreatureHasSpecificAction(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON);
 			bool checkAlly = listOfAllCreatures[idOfselectedCreature].isAlly;
 			bool checkAmmo = false;
 			bool hasEnoughActionPoints = false;
 			if (listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo > 0) { checkAmmo = true; }
 			if (listOfAllCreatures[idOfselectedCreature].actionPointsLeft >= listOfAllCreatures[idOfselectedCreature].actions[findActionOnCreatureByID(listOfAllCreatures, idOfselectedCreature, FIRE_PRIMARY_WEAPON)].actionPointCost) { hasEnoughActionPoints = true; }
+			*/
+			listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo--;
+			listOfAllCreatures[idOfselectedCreature].actionPointsLeft = 0;
 
-			if (checkAction && checkAlly && checkAmmo && hasEnoughActionPoints) {
-				listOfAllCreatures[idOfselectedCreature].primaryWeapon.currentAmmo--;
-				listOfAllCreatures[idOfselectedCreature].actionPointsLeft = 0;
-			}
 		};
 
 		if (IsKeyReleased(KEY_SPACE)) { idOfselectedCreature = BANNED_CREATURE_ID; displayPath = false; selectingSecondTile = false; }
